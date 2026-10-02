@@ -79,3 +79,11 @@ Ask one question at a time.
 Do not immediately reveal the answer.
 
 Evaluate the response and ask follow-up questions based on weaknesses.
+
+## Cursor Cloud specific instructions
+
+- Install dependencies: `npm ci`
+- Dev server (or rely on environment `start`): `npm run dev` (port 3000)
+- Before committing: `npm run lint`, `npm run typecheck`, and `npm run build`
+- Hello-world check: open the app, confirm API health, create a demo case via the UI
+- No secrets are required for the current in-memory scaffold
