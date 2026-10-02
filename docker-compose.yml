@@ -1,0 +1,13 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: opsninja
+      POSTGRES_PASSWORD: opsninja
+      POSTGRES_DB: opsninja
+    ports:
+      - "5432:5432"
+    volumes:
+      - opsninja_pg:/var/lib/postgresql/data
+volumes:
+  opsninja_pg:

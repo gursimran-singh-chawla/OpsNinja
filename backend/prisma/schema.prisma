@@ -1,0 +1,261 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  lead
+  manager
+  associate
+}
+
+enum CaseCategory {
+  normal
+  escalation
+  inventory
+  vendor
+  customer
+  other
+}
+
+enum VisibilityType {
+  GLOBAL
+  TEAM
+  DIRECT
+}
+
+enum AccessType {
+  VIEW
+  ASSIGNEE
+}
+
+enum ConversationType {
+  GLOBAL
+  DM
+}
+
+enum NotificationType {
+  mention
+  case_assigned
+  case_shared
+  case_routed_to_manager
+  red_flag
+  case_updated
+}
+
+model User {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  name           String
+  passwordHash   String
+  role           Role
+  reportsToId    String?
+  reportsTo      User?     @relation("ReportsTo", fields: [reportsToId], references: [id])
+  reports        User[]    @relation("ReportsTo")
+  deactivatedAt  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  sessions              Session[]
+  createdCases          Case[]           @relation("CaseCreator")
+  assignedCases         Case[]           @relation("CaseAssignee")
+  assignedByCases       Case[]           @relation("CaseAssignedBy")
+  visibilityManagerCases Case[]          @relation("CaseVisibilityManager")
+  caseAccessGrants      CaseAccess[]     @relation("AccessUser")
+  caseAccessGranted     CaseAccess[]     @relation("AccessGrantedBy")
+  comments              Comment[]
+  mentions              Mention[]        @relation("MentionedUser")
+  notifications         Notification[]
+  auditEvents           AuditEvent[]
+  breakGlassSessions    BreakGlassSession[]
+  conversationsCreated  Conversation[]
+  participants          ConversationParticipant[]
+  messages              Message[]
+
+  @@index([reportsToId])
+  @@index([role])
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Case {
+  id                   String           @id @default(uuid())
+  title                String
+  description          String
+  category             CaseCategory
+  createdById          String
+  createdBy            User             @relation("CaseCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  visibilityType       VisibilityType
+  visibilityManagerId  String?
+  visibilityManager    User?            @relation("CaseVisibilityManager", fields: [visibilityManagerId], references: [id], onDelete: Restrict)
+  assigneeId           String?
+  assignee             User?            @relation("CaseAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+  assignedById         String?
+  assignedBy           User?            @relation("CaseAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+  sourceMessageId      String?
+  redFlag              Boolean          @default(false)
+  finishedAt           DateTime?
+  archivedAt           DateTime?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  access     CaseAccess[]
+  comments   Comment[]
+
+  @@index([assigneeId])
+  @@index([createdById])
+  @@index([visibilityType])
+  @@index([visibilityManagerId])
+  @@index([redFlag])
+  @@index([archivedAt])
+}
+
+model CaseAccess {
+  id          String     @id @default(uuid())
+  caseId      String
+  case        Case       @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User       @relation("AccessUser", fields: [userId], references: [id], onDelete: Restrict)
+  accessType  AccessType @default(VIEW)
+  grantedById String
+  grantedBy   User       @relation("AccessGrantedBy", fields: [grantedById], references: [id], onDelete: Restrict)
+  createdAt   DateTime   @default(now())
+
+  @@unique([caseId, userId])
+  @@index([userId])
+}
+
+model Comment {
+  id        String    @id @default(uuid())
+  caseId    String
+  case      Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  body      String
+  createdAt DateTime  @default(now())
+  mentions  Mention[]
+
+  @@index([caseId, createdAt])
+}
+
+model Mention {
+  id               String   @id @default(uuid())
+  commentId        String?
+  comment          Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  messageId        String?
+  message          Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  mentionedUserId  String
+  mentionedUser    User     @relation("MentionedUser", fields: [mentionedUserId], references: [id], onDelete: Restrict)
+  createdAt        DateTime @default(now())
+
+  @@index([mentionedUserId])
+}
+
+model Conversation {
+  id          String           @id @default(uuid())
+  type        ConversationType
+  createdById String?
+  createdBy   User?            @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([type])
+}
+
+model ConversationParticipant {
+  id                 String        @id @default(uuid())
+  conversationId     String
+  conversation       Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  joinedAt           DateTime      @default(now())
+  lastReadMessageId  String?
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Restrict)
+  body           String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+  mentions       Mention[]
+
+  @@index([conversationId, createdAt])
+}
+
+model Notification {
+  id          String           @id @default(uuid())
+  recipientId String
+  recipient   User             @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  type        NotificationType
+  caseId      String?
+  messageId   String?
+  actorId     String?
+  readAt      DateTime?
+  createdAt   DateTime         @default(now())
+
+  @@index([recipientId, readAt, createdAt])
+}
+
+model AuditEvent {
+  id         String   @id @default(uuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+}
+
+model FeatureFlag {
+  key       String   @id
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+}
+
+model BreakGlassSession {
+  id          String              @id @default(uuid())
+  adminUserId String
+  admin       User                @relation(fields: [adminUserId], references: [id], onDelete: Restrict)
+  reason      String
+  startedAt   DateTime            @default(now())
+  expiresAt   DateTime
+  endedAt     DateTime?
+  accesses    BreakGlassAccess[]
+}
+
+model BreakGlassAccess {
+  id        String            @id @default(uuid())
+  sessionId String
+  session   BreakGlassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  caseId    String
+  accessedAt DateTime         @default(now())
+
+  @@index([sessionId])
+}

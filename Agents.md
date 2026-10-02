@@ -1,89 +1,70 @@
-# OpsNinja - AI Development Instructions
+# OpsNinja — Agent Instructions
 
-## Project
+## Product
 
-OpsPilot is a portfolio-grade AI-powered operations case management platform.
+OpsNinja is Harborlane Retail’s internal operations platform.
 
-The application is designed to demonstrate real-world full-stack software engineering skills.
+It is one place to communicate about operational problems, turn them into accountable cases, control who can see them, assign responsibility, escalate, resolve, and keep history.
 
-## Goal
+**Canonical name:** OpsNinja. Ignore any historical “OpsPilot” wording.
 
-The goal is not merely to generate code.
+## Objective
 
-The developer must understand:
-- the architecture
-- the data flow
-- the business logic
-- the security model
-- the AI integration
-- the testing strategy
-- the deployment process
+Build and ship a polished, deployable, presentable product.
 
-## Development Rules
+Prioritize execution and verification. Keep chat replies concise.
 
-1. Use TypeScript wherever possible.
-2. Prefer simple, maintainable solutions.
-3. Do not introduce unnecessary dependencies.
-4. Do not rewrite working code without a clear reason.
-5. Never hardcode secrets or API keys.
-6. Use environment variables for configuration.
-7. Validate user input.
-8. Use consistent API responses and error handling.
-9. Keep business logic separate from controllers/routes.
-10. Write reusable services.
-11. Protect authenticated endpoints.
-12. Enforce authorization on the backend.
-13. Add tests for important business logic.
-14. Before major changes, explain the planned approach.
-15. After changes, explain:
-    - what changed
-    - why it changed
-    - files modified
-    - important concepts
-    - possible risks
-    - how to test it
-16. Never claim something works unless it has been verified.
-17. Prefer incremental changes over large rewrites.
-18. State assumptions when requirements are unclear.
-19. Optimize for learning as well as implementation.
-20. Assume the developer must defend the project in a technical interview.
+Do not optimize for teaching during implementation. Interview walkthroughs happen after the product works.
 
-## Teaching Mode
+## Locked product rules
 
-Whenever a non-trivial feature is implemented:
-- explain the underlying concept
-- explain the request/data flow
-- explain why the implementation was chosen
-- explain alternatives
-- explain failure cases
-- explain security considerations
+- Four roles: Admin, Lead, Manager, Associate.
+- Creator, visibility, and assignee are three different concepts. Never collapse them into one field.
+- Visibility types: `GLOBAL` | `TEAM` | `DIRECT`.
+- Associates may be free agents (`reportsToId` null). Not a fifth role.
+- Anyone authenticated may create cases. Post-create permissions depend on role, visibility, assignment, and policy.
+- Admin is platform power, not case superuser. Break-glass is explicit, logged, read-only, expiring.
+- Manager cannot assign another Manager’s Associates. Free agents may be assigned by authorized Managers/Leads.
+- Lead has organization-wide operational visibility.
+- Finish = `finishedAt`. Archive = `archivedAt`. No hard delete of cases.
+- Chat is required: global conversation + 1:1 DMs + mentions + notifications. Not channels/huddles/voice.
+- Database is source of truth. WebSockets deliver live events only.
+- AI assists (summary, next actions, catch-up). AI never mutates cases. Product works if AI is down.
+- RAG/knowledge base is after core product + case AI.
+- Single tenant. Private GitHub repo stays private.
 
-Do not hide complexity just to make the implementation shorter.
+## Engineering rules
 
-## Deployment
+1. TypeScript everywhere practical.
+2. Modular monolith: thin controllers, services hold rules, data access separate.
+3. Authorize on the backend. Frontend hiding is UX only.
+4. Never trust client `role`, `userId`, or visibility authority.
+5. Secrets only in environment variables. Never commit `.env`.
+Passwords: Argon2id via hash-wasm (WASM; no native Windows toolchain required).
+6. Validate input. Consistent API errors. Do not leak stacks or SQL.
+7. Prefer Argon2id, HTTP-only session cookies, session id not role.
+8. PostgreSQL + Prisma. No Elasticsearch. No Redis unless scaling requires it.
+9. Test high-risk authz, visibility, assignment, chat privacy, AI failure.
+10. Incremental milestones, meaningful commits, no force-push, no history rewrite.
+11. Do not claim something works unless verified.
+12. Do not rebuild working modules. Do not add impressive unused infrastructure.
 
-When deployment work begins:
-- explain the architecture first
-- explain each command before using it
-- explain environment variables
-- explain how to verify each deployment stage
-- explain common deployment failures
-- explain how to troubleshoot logs
+## Stack
 
-## Interview Mode
+- Frontend: React, TypeScript, Vite, Tailwind
+- Backend: Node.js, Express, TypeScript
+- DB: PostgreSQL, Prisma
+- Realtime: Socket.IO
+- AI: provider abstraction over an external LLM API
 
-When requested, act as a technical interviewer.
+## Implementation order
 
-Ask one question at a time.
+Foundation → Postgres/Prisma → auth → policy → cases → visibility → assignment → lifecycle → audit → dashboards → search → global chat → DMs → mentions/notifications → chat/case linking → people/admin → break-glass → deploy → AI → RAG if stable → polish → security → CI → README.
 
-Do not immediately reveal the answer.
+## Communication with the developer
 
-Evaluate the response and ask follow-up questions based on weaknesses.
+Do not ask for permission on naming, file layout, or copy.
 
-## Cursor Cloud specific instructions
+Stop only for credentials, paid services, destructive data loss, or irreconcilable product conflicts.
 
-- Install dependencies: `npm ci`
-- Dev server (or rely on environment `start`): `npm run dev` (port 3000)
-- Before committing: `npm run lint`, `npm run typecheck`, and `npm run build`
-- Hello-world check: open the app, confirm API health, create a demo case via the UI
-- No secrets are required for the current in-memory scaffold
+After each major milestone report only: Completed / Verification / Known issues / Next milestone.

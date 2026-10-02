@@ -1,26 +1,19 @@
 {
-  "name": "opspilot",
-  "version": "0.1.0",
+  "name": "opsninja",
   "private": true,
+  "workspaces": ["backend", "frontend"],
   "scripts": {
-    "dev": "next dev --hostname 0.0.0.0 --port 3000",
-    "build": "next build",
-    "start": "next start --hostname 0.0.0.0 --port 3000",
-    "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "dev": "npm run dev --workspace=backend & npm run dev --workspace=frontend",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build": "npm run build --workspace=backend && npm run build --workspace=frontend",
+    "lint": "npm run typecheck --workspace=backend",
+    "typecheck": "npm run typecheck --workspace=backend",
+    "test": "vitest run --dir backend/src",
+    "db:migrate": "npm run prisma:migrate --workspace=backend",
+    "db:seed": "npm run prisma:seed --workspace=backend"
   },
-  "dependencies": {
-    "next": "^15.1.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
-  },
-  "devDependencies": {
-    "@eslint/eslintrc": "^3.2.0",
-    "@types/node": "^22.10.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "eslint": "^9.16.0",
-    "eslint-config-next": "^15.1.0",
-    "typescript": "^5.7.2"
+  "engines": {
+    "node": ">=20"
   }
 }

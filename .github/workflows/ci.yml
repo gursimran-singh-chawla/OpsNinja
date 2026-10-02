@@ -1,0 +1,39 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: opsninja
+          POSTGRES_PASSWORD: opsninja
+          POSTGRES_DB: opsninja
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U opsninja"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://opsninja:opsninja@localhost:5432/opsninja?schema=public
+      SESSION_SECRET: ci-session-secret-at-least-16
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm install
+      - run: npm run prisma:generate --workspace=backend
+      - run: npm run typecheck
+      - run: npm test
+      - run: npx prisma migrate deploy --schema backend/prisma/schema.prisma
+        working-directory: backend
+      - run: npm run build --workspace=frontend

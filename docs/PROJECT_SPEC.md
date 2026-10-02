@@ -1,182 +1,75 @@
-# OpsNinja / OpsPilot — Project specification
+# OpsNinja — Product specification
 
-**Purpose:** Permanent product context for future agents.
+**Status:** Current design. Implementation is in progress. See Implemented vs Future below.
 
-**How to read this file**
+Canonical name: **OpsNinja**. Historical name OpsPilot is obsolete.
 
-| Provenance | Meaning |
+Harborlane Retail is the fictional company.
+
+## Overview
+
+OpsNinja is an internal operations platform. People communicate about operational problems, turn them into accountable cases, control who can see each case, assign responsibility, escalate, resolve, and keep a full history.
+
+Two surfaces:
+
+- **Operations:** users, roles, cases, visibility, routing, assignment, escalation, resolution, history, dashboards, search
+- **Communication:** global chat, DMs, mentions, notifications, persistent messages, links between chat and cases
+
+AI is an assistance layer. It does not run the company.
+
+Not in v1: Slack clone, Jira clone, HR system, social network, autonomous agents, multi-tenant SaaS.
+
+## Problem
+
+Operational issues at Harborlane scatter across email, spreadsheets, and chat. Ownership, visibility, and responsibility get mixed up. OpsNinja keeps **who created it**, **who can see it**, and **who owns the work** as three separate facts.
+
+## Roles
+
+| Role | Purpose |
 |---|---|
-| **In git** | Tracked in this repository today |
-| **Design (untracked)** | Written in [`.cursor/plans/opsninja_product_prd_9b154559.plan.md`](../.cursor/plans/opsninja_product_prd_9b154559.plan.md); **not** committed as of last inspect |
-| **[TBD - requires confirmation]** | Not present in git or in that design document |
+| Admin | Users, roles, reporting lines, feature flags, usage aggregates. Not a case superuser. Optional logged read-only break-glass. |
+| Lead | Organization-wide operational visibility, routing, dashboards, full case verbs. |
+| Manager | Own team + free-agent Associates. Cannot assign another Manager’s Associates. |
+| Associate | Do assigned work. May report to a Manager or be a free agent (`reportsToId` null). |
 
-**Repository inspect (2026-10-02)**
+Anyone authenticated may **create** cases. Later permissions depend on role, visibility, assignment, and server policy.
 
-- Git: yes. Tracked files: `Agents.md` only.
-- Commits: `dbbc63f` empty `Agents.md`; `21d6444` AI development instructions.
-- Untracked: `.cursor/` (PRD/plan).
-- No `package.json`, no application source, no `.gitignore`, no CI config.
-- Folder `docs/` did not contain these files before this write.
+## Case visibility
 
----
+`GLOBAL` | `TEAM` | `DIRECT`
 
-## Project overview
+- **GLOBAL:** visible to operational workspace users (not Admin case queue by default).
+- **TEAM:** selected Manager, that Manager’s Associates, Lead, creator as applicable.
+- **DIRECT:** explicitly granted users + Lead org-wide visibility. Not an entire team.
 
-**In git (`Agents.md`):** The heading is “OpsNinja - AI Development Instructions.” The project paragraph names **OpsPilot**, a portfolio-grade AI-powered operations case management platform meant to show full-stack engineering skill. The goal is that the developer understands architecture, data flow, business logic, security, AI integration, testing, and deployment—not merely generated code.
+Assignment (`assigneeId`) is independent of visibility.
 
-**Design (untracked):** Product name **OpsNinja** for a fictional company **Harborlane Retail**. The case is the system of record: categorize, assign, discuss on the case, red-flag, finish, archive. Admin is platform-only; Lead / Manager / Associate own operational data.
+## Case lifecycle
 
-**[TBD - requires confirmation]:** Canonical public name (OpsNinja vs OpsPilot) for README, packages, and deployment.
+`OPEN` (neither timestamp) → `FINISHED` (`finishedAt`) → `ARCHIVED` (`archivedAt`). No hard delete.
 
----
+Categories: `normal`, `escalation`, `inventory`, `vendor`, `customer`, `other`.
 
-## Problem statement
+## Communication
 
-**In git:** Not stated beyond “operations case management platform.”
+One global conversation. One-to-one DMs. Mentions create records and notifications. Case comments are a separate thread. Chat can spawn a case with a source-message link.
 
-**Design (untracked):** Harborlane’s operational problems live in email, spreadsheets, and chat. Nobody owns the issue; status and priority are informal; deadlines slip; similar incidents are not reused; hand-offs lose context. OpsNinja is the single memory of an operational problem until it is finished and archived.
+## AI
 
----
+Summary, suggested next actions, catch-up on cases the user can already view. Failures do not block cases or chat. RAG/knowledge base is **future** after core + case AI.
 
-## Target users
+## Stack (current design)
 
-**In git:** Not listed.
+React + TypeScript + Vite + Tailwind · Express + TypeScript · PostgreSQL + Prisma · Socket.IO · LLM API behind a provider interface.
 
-**Design (untracked):** Internal Harborlane employees only.
+## Implemented
 
-| Role | Cares about |
-|---|---|
-| Admin (tech operator) | Accounts, roles, reporting lines, feature flags, usage analytics. Not the case queue. |
-| Lead | Open cases, red-flag inbox, managers, archive integrity |
-| Manager | Their associates’ queue, assignment, finishing team work |
-| Associate | Solving assigned (and self-opened) cases |
+Foundation work is recorded as it lands. At documentation rewrite time the git repo had instructions/docs only.
 
-**Out of MVP (design):** External customers, vendors, contractors without Harborlane accounts.
+## Future (deferred)
 
----
+Mobile app, multi-tenancy, billing, portals, email/SMS, voice/video, group channels, reactions, presence, workflow builder, Elasticsearch, Redis unless needed, autonomous agents, RAG until core is stable.
 
-## User roles
+## Success
 
-**In git:** Not defined. Rules require protecting authenticated endpoints and enforcing authorization on the backend—no role names.
-
-**Design (untracked):** Exactly four roles. Platform power (Admin) must not mix with operations data power (Lead → Manager → Associate).
-
-- **Admin:** Add/deactivate people; assign Lead/Manager/Associate; set reporting lines; feature flags; usage **counts**; break-glass **read-only** with reason and log. Cannot finish/archive/comment/edit cases in normal use; cannot disable the audit log.
-- **Lead:** All company cases; red-flag inbox; reassign across teams; all case verbs including archive/unarchive. Cannot create users or flip global feature flags.
-- **Manager:** Own team only; assign their Associates; finish; archive finished team cases. Cannot run another Manager’s team.
-- **Associate:** Own queue; add categorized cases; comment; @tag; red-flag; finish. Cannot assign others, archive, or see the company-wide queue.
-
-**Locked in design:** Admin does not have day-to-day case oversight. v1 break-glass: explicit emergency **read** of a case, logged, no writes.
-
----
-
-## Finalized features (design only; none implemented)
-
-Present only in the untracked PRD:
-
-- Add case with **category** (at least Normal, Escalation; also Inventory, Vendor, Customer, Other).
-- Assign; **red-flag** (Lead inbox + Manager team view); **finish**; **archive** (not hard delete).
-- Case discussion + **@mentions** + in-app “you were tagged.”
-- Employee **profiles** / directory (light, not HR files).
-- Search and filters; **history** of case changes and interactions.
-- Four UI shells: Associate queue, Manager team, Lead command, Admin console.
-- Admin: people, flags, usage counts, break-glass read-only.
-
-**Not a v1 product:** Slack-like channels/DMs as the primary surface (discussion is on the case).
-
----
-
-## MVP scope
-
-**In git:** Not specified.
-
-**Design (untracked) must-ship:**
-
-- Auth + four roles + reporting lines
-- Scoped queues
-- Add / categorize / assign / red-flag / finish / archive
-- Discussion + @mentions
-- Lead and Manager dashboards
-- Admin console as above
-- Profiles, search, history
-- Basic web UI per role
-- AI add-on later in the same v1 **sequence**, scoped to visible cases (not load-bearing)
-
-**MVP success (design):** Admin cannot quietly edit an archived incident; Lead sees every red flag; Manager only runs their funnel; Associate only works their cases.
-
-**Explicitly out of MVP (design):** Slack clone, hard delete, editing audit logs, Jira boards/sprints, autonomous agents mutating cases, AI required to finish work, multi-tenancy, native mobile, billing, BPMN, IoT, Admin god mode, Admin analytics of case **content**, big-bang codegen.
-
----
-
-## Future features
-
-**In git:** Not listed.
-
-**Design (untracked):** Channels/DMs linkable to a case; email notifications; dual-approval break-glass; SLA clocks; auto-escalate stale red flags; attachments; saved views; bulk assign/archive; customer/vendor portal; AI auto-categorize with human confirm; multi-tenant SaaS; full-text search engine; real-time presence.
-
----
-
-## AI features
-
-**In git:** AI integration is a required **learning** topic. No model, vendor, or feature list.
-
-**Design (untracked):**
-
-| Feature | Guardrail |
-|---|---|
-| Case summary | Grounded in this case only; labeled AI-generated |
-| Next actions | Suggestions only; no auto status/finish |
-| Knowledge-base search | Cite articles; if empty, say so |
-
-AI is a plugin. Cases must work if the model is down. Admin may disable the AI **feature flag**. Do not send HR-private data that is not on the case or allowed KB.
-
-**[TBD - requires confirmation]:** LLM vendor, model name, API contract, embeddings/vector store for RAG, knowledge-article schema in code.
-
----
-
-## Technology stack
-
-**In git (`Agents.md`):** TypeScript wherever possible; environment variables for configuration; no hardcoded secrets. No runtime, framework, or database named.
-
-**Design (untracked, called “locked” there):** React (**Vite**) frontend; **Express** TypeScript API; **Postgres**; **Prisma** as v1 ORM default; optional outbound AI HTTP client. Fastify noted as a substitute that would not change modules.
-
-**Not in repository:** `package.json`, lockfile, Docker, ORM schema, frontend app.
-
-**[TBD - requires confirmation]:** Node.js version, package manager, Express vs Fastify in the first `package.json`, exact Prisma version, test runner, UI component library.
-
----
-
-## External resources / services
-
-**In git:** None named.
-
-**Design (untracked):** External LLM for the AI plugin; Postgres as data store.
-
-**[TBD - requires confirmation]:** Hosting (API, web, DB), LLM provider account, email/SMS (explicitly not MVP), object storage for attachments (future).
-
----
-
-## Project constraints
-
-**In git (`Agents.md`):**
-
-- Simple, maintainable solutions; few unnecessary dependencies.
-- Do not rewrite working code without a reason.
-- Validate input; consistent API errors; services separate from routes.
-- Authenticate protected endpoints; authorize on the backend.
-- Tests for important business logic.
-- Incremental changes; explain before/after major work; never claim unverified success.
-- Optimize for learning and interview defense.
-- Teaching loop on non-trivial features (concept, flow, alternatives, failures, security).
-
-**Design (untracked):** Design → explain → implement **one** part → test → teach. Single tenant. No microservices/message bus in v1. Teaching loop to be copied into `Agents.md` + Cursor rule when implementation starts (todo still pending).
-
----
-
-## Success criteria
-
-**In git:** Developer can defend architecture, data flow, business logic, security, AI, testing, and deployment.
-
-**Design (untracked):** MVP success as above; product usable without AI; official case data not writable by Admin except the logged read-only break-glass path.
-
-**[TBD - requires confirmation]:** Quantitative SLAs, test coverage %, production URL, when the product is “demo ready.”
+A reviewer can log in, get a role-correct UI, chat globally and in DMs, create a case with explicit visibility vs assignment, and see history. API rejects unauthorized access. AI is optional.

@@ -1,42 +1,57 @@
-# OpsNinja / OpsPilot
+# OpsNinja
 
-Portfolio-grade AI-powered operations case management platform (in development).
+Internal operations platform for Harborlane Retail — one place to talk about operational problems, turn them into accountable cases, control who can see them, assign ownership, and keep history.
 
-## Prerequisites
+**Live demo:** not deployed yet (first production gate pending Render/Vercel credentials).
 
-- Node.js 22+
-- npm 10+
+## Problem
 
-## Setup
+Issues scatter across email, chat, and spreadsheets. Creator, audience, and owner get mixed together.
+
+## Solution
+
+Explicit **visibility** (`GLOBAL` / `TEAM` / `DIRECT`) is separate from **assignment**. Global chat and DMs persist in Postgres. AI may summarize cases later; it never mutates records.
+
+## Roles
+
+Admin (platform) · Lead (org operations) · Manager (team + free agents) · Associate (work; may have no manager).
+
+## Stack
+
+React + Vite + Tailwind · Express + TypeScript · PostgreSQL + Prisma · Socket.IO
+
+## Local setup
 
 ```bash
-npm ci
+docker compose up -d
+cp .env.example .env
+cp .env.example backend/.env
+npm install
+cd backend && npx prisma migrate dev --name init && npx prisma db seed && cd ..
+npm run dev:backend
+npm run dev:frontend
 ```
 
-## Development
+Open http://localhost:5173
 
-```bash
-npm run dev
-```
+Demo password for all seed users: `Harborlane!26`
 
-Open [http://localhost:3000](http://localhost:3000). Use **Create demo case** to exercise the cases API.
+| Role | Email |
+|---|---|
+| Lead | sarah.okonkwo@harborlane.example |
+| Manager | marcus.hale@harborlane.example |
+| Associate | ravi.mehta@harborlane.example |
+| Free agent | amira.hassan@harborlane.example |
+| Admin | priya.nair@harborlane.example |
 
-## Scripts
+## Testing
 
-| Command | Description |
-| --- | --- |
-| `npm run dev` | Start Next.js dev server on port 3000 |
-| `npm run build` | Production build |
-| `npm run start` | Run production server |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | TypeScript check |
+`npm test` — case visibility/assignment policy.
 
-## API
+## Security
 
-- `GET /api/health` — service health
-- `GET /api/cases` — list in-memory demo cases
-- `POST /api/cases` — create a case (`{ "title": "...", "priority": "medium" }`)
+Argon2id passwords, HTTP-only sessions, backend authorization, no case god-mode for Admin.
 
-## Environment variables
+## Roadmap
 
-Copy `.env.example` to `.env.local` when adding secrets (AI providers, database, etc.). The current scaffold runs without required secrets.
+Break-glass UI, production deploy, AI summaries, RAG.
