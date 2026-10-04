@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../auth";
+import { btnPrimary, field } from "../ui";
 
 const demos = [
   ["sarah.okonkwo@harborlane.example", "Lead"],
@@ -30,47 +32,50 @@ export function Login() {
   }
 
   return (
-    <div className="grid min-h-screen place-items-center bg-zinc-950 px-4">
-      <div className="w-full max-w-md border border-zinc-800 bg-zinc-900/40 p-8">
-        <div className="text-xs font-semibold tracking-[0.25em] text-amber-500">OPSNINJA</div>
+    <div className="grid min-h-screen place-items-center bg-surface px-4">
+      <div className="w-full max-w-md rounded-xl border border-border bg-elevated p-8 shadow-sm">
+        <div className="text-xs font-semibold tracking-[0.25em] text-brand">OPSNINJA</div>
         <h1 className="mt-3 text-2xl font-semibold tracking-tight">Harborlane operations</h1>
-        <p className="mt-2 text-sm text-zinc-400">
-          One place for operational problems: who created them, who can see them, who owns the work.
+        <p className="mt-2 text-sm text-muted">
+          One place for operational work: who created it, who can see it, who owns it.
         </p>
         <form className="mt-8 space-y-3" onSubmit={(e) => void onSubmit(e)}>
-          <label className="block text-xs text-zinc-400">
+          <label className="block text-xs text-muted">
             Email
             <input
-              className="mt-1 w-full border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-amber-600"
+              className={field}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="username"
             />
           </label>
-          <label className="block text-xs text-zinc-400">
+          <label className="block text-xs text-muted">
             Password
             <input
               type="password"
-              className="mt-1 w-full border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-amber-600"
+              className={field}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
             />
           </label>
-          {error ? <p className="text-sm text-red-400">{error}</p> : null}
-          <button
-            disabled={busy}
-            className="w-full bg-amber-600 py-2 text-sm font-medium text-zinc-950 hover:bg-amber-500 disabled:opacity-50"
-          >
+          {error ? <p className="text-sm text-due">{error}</p> : null}
+          <button disabled={busy} className={`${btnPrimary} w-full`}>
             {busy ? "Signing in…" : "Sign in"}
           </button>
         </form>
-        <div className="mt-6 text-xs text-zinc-500">
-          Demo password for all accounts: <span className="text-zinc-300">Harborlane!26</span>
+        <p className="mt-4 text-sm text-muted">
+          New to Harborlane?{" "}
+          <Link to="/signup" className="text-accent hover:underline">
+            Create an account
+          </Link>
+        </p>
+        <div className="mt-6 text-xs text-muted">
+          Demo password for all accounts: <span className="text-ink">Harborlane!26</span>
           <ul className="mt-2 space-y-1">
             {demos.map(([e, r]) => (
               <li key={e}>
-                <button type="button" className="text-left text-zinc-400 hover:text-amber-500" onClick={() => setEmail(e)}>
+                <button type="button" className="text-left hover:text-accent" onClick={() => setEmail(e)}>
                   {r}: {e}
                 </button>
               </li>

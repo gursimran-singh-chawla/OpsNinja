@@ -1,18 +1,17 @@
 # OpsNinja — Database
 
-**Status:** Current design. Prisma schema is the source of implemented tables once migrations exist. Do not treat this file as applied until the matching migration is in git.
-
 **Engine:** PostgreSQL. **ORM:** Prisma. UUID primary keys.
 
 ## Design principles
 
-- Creator, visibility, and assignee are different fields.
+- Creator, visiblity, and assignee are different fields.
 - Associates may have `reportsToId = null` (free agent).
-- Cases are never hard-deleted (`finishedAt` / `archivedAt`).
+- Tasks are never hard-deleted (`finishedAt` / `archivedAt`).
 - Chat and audit are separate tables.
-- Access grants live in `CaseAccess` where explicit membership is required.
+- Access grants live in `TaskAccess` where explicit membership is required.
+- **Due** is not stored as a flag; it is `dueAt < now()` on open tasks.
 
-## Core entities (current design)
+## Core entities
 
 ### User
 Identity, `role` (`admin|lead|manager|associate`), `reportsToId` nullable, `passwordHash`, `deactivatedAt`.
@@ -20,41 +19,39 @@ Identity, `role` (`admin|lead|manager|associate`), `reportsToId` nullable, `pass
 ### Session
 `id`, `userId`, `expiresAt`. Cookie holds session id.
 
-### Case
-`title`, `description`, `category`, `createdById`, `visibilityType` (`GLOBAL|TEAM|DIRECT`), `visibilityManagerId` nullable, `assigneeId` nullable, `assignedById` nullable, `redFlag`, `finishedAt`, `archivedAt`, timestamps.
+### Task
+`title`, `description`, `category` (`TaskCategory`), `workKind` (`task|escalation|backlog|report`), `metadata` JSON nullable, `priority` (`low|normal|high|urgent`), `dueAt` nullable deadline, `createdById`, `visibilityType` (`GLOBAL|TEAM|DIRECT`), `visibilityManagerId` nullable, `assigneeId` nullable, `assignedById` nullable, `boardColumn` (`TODO|IN_PROGRESS|IN_REVIEW|DONE`), `boardRank` (lexicographic order in the column), `finishedAt`, `archivedAt`, timestamps. `redFlag` remains in the table unused by v2 UI.
 
-### CaseAccess
-Explicit grants: `caseId`, `userId`, `accessType`, `grantedById`, `createdAt`. Used for DIRECT (and extra viewers).
+### TaskAccess
+Explicit grants: `taskId`, `userId`, `accessType`, `grantedById`, `createdAt`. Used for DIRECT (and extra viewers).
 
 ### Comment / Mention
-Case thread. Mentions stored at write time.
+Task thread. Mentions stored at write time. Comments use `taskId`.
 
 ### Conversation / ConversationParticipant / Message
-`Conversation.type`: `GLOBAL` | `DM`. Messages persist; optional `deletedAt` for sender hide later. Indexes on `(conversationId, createdAt)` for cursor pagination.
+`Conversation.type`: `GLOBAL` | `DM`.
 
 ### Notification
-Recipient, type, source ids, `readAt`.
+Recipient, type (`mention`, `task_assigned`, `task_shared`, `task_routed_to_manager`, `task_overdue`, `task_updated`), `taskId`, `readAt`.
 
 ### AuditEvent
-Append-only actions (`case.created`, `case.assigned`, `case.visibility_changed`, …).
+Append-only (`task.created`, `task.assigned`, `task.visibility_changed`, `user.onboarded`, …). `entityType` `task` | `user`.
 
-### FeatureFlag
-Key + enabled.
+### FeatureFlag / BreakGlassSession / BreakGlassAccess
+Break-glass access logs `taskId`.
 
-### BreakGlassSession / BreakGlassAccess
-Reason, expiry, per-case read log.
-
-## Indexes (design)
+## Indexes
 
 - User: unique email, `reportsToId`, `role`
-- Case: `assigneeId`, `createdById`, `visibilityType`, `visibilityManagerId`, `redFlag`, `archivedAt`
-- CaseAccess: `(caseId, userId)` unique
+- Task: `assigneeId`, `createdById`, `visibilityType`, `visibilityManagerId`, `workKind`, `archivedAt`, `dueAt`, `(boardColumn, boardRank)`
+- TaskAccess: `(taskId, userId)` unique
+- Comment: `(taskId, createdAt)`
 - Message: `(conversationId, createdAt)`
 - Notification: `(recipientId, readAt, createdAt)`
 - AuditEvent: `(entityType, entityId, createdAt)`
 
-- **Implemented:** Prisma schema + SQL migration `20241002120000_init` (not yet applied locally; Docker was unavailable on the author machine).
+## Migrations
 
-## Future tables
-
-KnowledgeArticle, AiCallLog, Attachment.
+- `20241002120000_init`
+- `20261003170000_case_priority_deadline`
+- `20261004180000_task_board` — `BoardColumn`, `boardRank`

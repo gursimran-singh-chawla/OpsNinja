@@ -4,9 +4,9 @@
 
 OpsNinja is Harborlane Retail’s internal operations platform.
 
-It is one place to communicate about operational problems, turn them into accountable cases, control who can see them, assign responsibility, escalate, resolve, and keep history.
+It is one place to communicate about operational problems, turn them into accountable **tasks**, control who can see them, assign responsibility, escalate, resolve, and keep history.
 
-**Canonical name:** OpsNinja. Ignore any historical “OpsPilot” wording.
+**Canonical name:** OpsNinja. Ignore any historical “OpsPilot” wording. User-facing and domain language is **task**, not case.
 
 ## Objective
 
@@ -22,15 +22,17 @@ Do not optimize for teaching during implementation. Interview walkthroughs happe
 - Creator, visibility, and assignee are three different concepts. Never collapse them into one field.
 - Visibility types: `GLOBAL` | `TEAM` | `DIRECT`.
 - Associates may be free agents (`reportsToId` null). Not a fifth role.
-- Anyone authenticated may create cases. Post-create permissions depend on role, visibility, assignment, and policy.
-- Admin is platform power, not case superuser. Break-glass is explicit, logged, read-only, expiring.
+- Lead, Manager, and Associate may create tasks (all work kinds). Post-create permissions depend on role, visibility, assignment, and policy.
+- Admin is platform power, not a task superuser. Admin sees **no task content**. Break-glass is explicit, logged, read-only, expiring.
 - Manager cannot assign another Manager’s Associates. Free agents may be assigned by authorized Managers/Leads.
+- Associates cannot assign others. They may **self-assign** an unassigned visible task or remain unassigned.
 - Lead has organization-wide operational visibility.
-- Finish = `finishedAt`. Archive = `archivedAt`. No hard delete of cases.
+- Complete = `finishedAt`. Archive = `archivedAt`. No hard delete of tasks.
+- **Due** is computed: open task with `dueAt` in the past. Not a manual flag.
 - Chat is required: global conversation + 1:1 DMs + mentions + notifications. Not channels/huddles/voice.
 - Database is source of truth. WebSockets deliver live events only.
-- AI assists (summary, next actions, catch-up). AI never mutates cases. Product works if AI is down.
-- RAG/knowledge base is after core product + case AI.
+- AI assists (summary, next actions, catch-up). AI never mutates tasks. Product works if AI is down.
+- RAG/knowledge base is after core product + task AI.
 - Single tenant. Private GitHub repo stays private.
 
 ## Engineering rules
@@ -59,7 +61,7 @@ Passwords: Argon2id via hash-wasm (WASM; no native Windows toolchain required).
 
 ## Implementation order
 
-Foundation → Postgres/Prisma → auth → policy → cases → visibility → assignment → lifecycle → audit → dashboards → search → global chat → DMs → mentions/notifications → chat/case linking → people/admin → break-glass → deploy → AI → RAG if stable → polish → security → CI → README.
+Foundation → Postgres/Prisma → auth → policy → tasks → visibility → assignment → lifecycle → audit → dashboards → search → global chat → DMs → mentions/notifications → chat/task linking → people/admin → break-glass → deploy → AI → RAG if stable → polish → security → CI → README.
 
 ## Communication with the developer
 

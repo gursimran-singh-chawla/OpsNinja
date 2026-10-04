@@ -17,11 +17,11 @@
     "socket.io-client": "4.8.1"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "4.0.6",
+    "@tailwindcss/vite": "4.1.18",
     "@types/react": "18.3.18",
     "@types/react-dom": "18.3.5",
     "@vitejs/plugin-react": "4.3.4",
-    "tailwindcss": "4.0.6",
+    "tailwindcss": "4.1.18",
     "typescript": "5.7.3",
     "vite": "5.4.11"
   }

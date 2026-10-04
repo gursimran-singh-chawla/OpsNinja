@@ -9,23 +9,20 @@ platformRouter.use(requireAuth, requireRole("admin"));
 platformRouter.get(
   "/metrics",
   asyncHandler(async (_req, res) => {
-    const [users, byRole, sessions, total, open, finished, archived, flags] = await Promise.all([
+    const [users, byRole, sessions, flags, auditEvents] = await Promise.all([
       prisma.user.count(),
       prisma.user.groupBy({ by: ["role"], _count: true }),
       prisma.session.count(),
-      prisma.case.count(),
-      prisma.case.count({ where: { archivedAt: null, finishedAt: null } }),
-      prisma.case.count({ where: { finishedAt: { not: null } } }),
-      prisma.case.count({ where: { archivedAt: { not: null } } }),
       prisma.featureFlag.findMany(),
+      prisma.auditEvent.count(),
     ]);
     res.json({
       data: {
         users,
         byRole,
         activeSessions: sessions,
-        cases: { total, open, finished, archived },
         flags,
+        auditEvents,
       },
     });
   }),

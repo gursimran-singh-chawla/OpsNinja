@@ -13,6 +13,7 @@ const Ctx = createContext<{
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  signup: (input: { name: string; email: string; password: string; role: "lead" | "manager" | "associate" }) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 } | null>(null);
@@ -46,6 +47,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const me = await api<User>("/api/auth/login", {
             method: "POST",
             body: JSON.stringify({ email, password }),
+          });
+          setUser(me);
+        },
+        signup: async (input) => {
+          const me = await api<User>("/api/auth/register", {
+            method: "POST",
+            body: JSON.stringify(input),
           });
           setUser(me);
         },

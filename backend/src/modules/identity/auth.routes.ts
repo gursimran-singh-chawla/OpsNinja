@@ -12,6 +12,7 @@ const creds = z.object({
   email: z.string().email(),
   password: z.string().min(8).max(128),
   name: z.string().min(1).max(80).optional(),
+  role: z.enum(["lead", "manager", "associate"]).optional(),
 });
 
 function cookieOpts() {
@@ -29,8 +30,17 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const body = creds.parse(req.body);
     if (!body.name) throw errors.badRequest("Name is required");
-    const user = await auth.register({ email: body.email, name: body.name, password: body.password });
-    res.status(201).json({ data: user });
+    if (!body.role) throw errors.badRequest("Role is required");
+    const user = await auth.register({
+      email: body.email,
+      name: body.name,
+      password: body.password,
+      role: body.role,
+    });
+    const ip = req.ip ?? "unknown";
+    const session = await auth.login(body.email, body.password, ip);
+    res.cookie(env.COOKIE_NAME, session.sessionId, cookieOpts());
+    res.status(201).json({ data: session.user });
   }),
 );
 

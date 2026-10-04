@@ -61,10 +61,10 @@ export function Chat() {
 
   return (
     <div className="grid min-h-[70vh] gap-4 lg:grid-cols-[220px_1fr]">
-      <aside className="border border-zinc-800 p-3">
-        <div className="text-xs uppercase text-zinc-500">Conversations</div>
+      <aside className="rounded-xl border border-border bg-elevated p-3">
+        <div className="text-xs uppercase text-muted">Conversations</div>
         <button
-          className={`mt-2 block w-full px-2 py-2 text-left text-sm ${active === list?.global.id ? "bg-zinc-800" : "hover:bg-zinc-900"}`}
+          className={`mt-2 block w-full rounded-md px-2 py-2 text-left text-sm ${active === list?.global.id ? "bg-teal-50 text-accent" : "hover:bg-surface"}`}
           onClick={() => list && setActive(list.global.id)}
         >
           Global
@@ -74,38 +74,38 @@ export function Chat() {
           return (
             <button
               key={d.id}
-              className={`mt-1 block w-full px-2 py-2 text-left text-sm ${active === d.id ? "bg-zinc-800" : "hover:bg-zinc-900"}`}
+              className={`mt-1 block w-full rounded-md px-2 py-2 text-left text-sm ${active === d.id ? "bg-teal-50 text-accent" : "hover:bg-surface"}`}
               onClick={() => setActive(d.id)}
             >
               {other?.name ?? "DM"}
             </button>
           );
         })}
-        <div className="mt-4 text-xs uppercase text-zinc-500">New DM</div>
+        <div className="mt-4 text-xs uppercase text-muted">New DM</div>
         {people.map((p) => (
-          <button key={p.id} className="mt-1 block w-full px-2 py-1 text-left text-xs text-zinc-400 hover:text-white" onClick={() => void startDm(p.id)}>
+          <button key={p.id} className="mt-1 block w-full px-2 py-1 text-left text-xs text-muted hover:text-accent" onClick={() => void startDm(p.id)}>
             {p.name}
           </button>
         ))}
       </aside>
-      <section className="flex flex-col border border-zinc-800">
-        <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-2 text-xs text-zinc-500">
+      <section className="flex flex-col rounded-xl border border-border bg-elevated">
+        <div className="flex items-center justify-between border-b border-border px-4 py-2 text-xs text-muted">
           <span>Harborlane chat</span>
           <span>{status}</span>
         </div>
         <div className="flex-1 space-y-3 overflow-y-auto p-4">
           {messages.map((m) => (
             <div key={m.id}>
-              <div className="text-xs text-zinc-500">
+              <div className="text-xs text-muted">
                 {m.sender.name} · {new Date(m.createdAt).toLocaleTimeString()}
               </div>
               <div className="text-sm">{m.body}</div>
             </div>
           ))}
         </div>
-        <form className="flex border-t border-zinc-800" onSubmit={(e) => void send(e)}>
+        <form className="flex border-t border-border" onSubmit={(e) => void send(e)}>
           <input name="body" required className="flex-1 bg-transparent px-4 py-3 text-sm outline-none" placeholder="Message — @Name to mention" />
-          <button className="px-4 text-sm text-amber-500">Send</button>
+          <button className="px-4 text-sm text-accent">Send</button>
         </form>
       </section>
     </div>

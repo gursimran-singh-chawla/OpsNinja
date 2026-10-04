@@ -1,4 +1,3 @@
-import "./types/express.js";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -9,7 +8,7 @@ import { attachSession } from "./middleware/session.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { authRouter } from "./modules/identity/auth.routes.js";
 import { usersRouter } from "./modules/identity/users.routes.js";
-import { casesRouter } from "./modules/cases/cases.routes.js";
+import { tasksRouter } from "./modules/tasks/tasks.routes.js";
 import { notificationsRouter } from "./modules/notifications/notifications.routes.js";
 import { chatRouter } from "./modules/communication/chat.routes.js";
 import { platformRouter } from "./modules/platform/platform.routes.js";
@@ -38,7 +37,7 @@ export function createApp() {
 
   app.use("/api/auth", authRouter);
   app.use("/api/users", usersRouter);
-  app.use("/api/cases", casesRouter);
+  app.use("/api/tasks", tasksRouter);
   app.use("/api/notifications", notificationsRouter);
   app.use("/api/chat", chatRouter);
   app.use("/api/platform", platformRouter);

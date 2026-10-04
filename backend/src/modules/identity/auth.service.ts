@@ -37,11 +37,15 @@ export function checkLoginRate(key: string) {
   if (rec.count > 10) throw errors.tooMany();
 }
 
-export async function register(input: { email: string; name: string; password: string }) {
+export async function register(input: {
+  email: string;
+  name: string;
+  password: string;
+  role: "lead" | "manager" | "associate";
+}) {
   const existing = await prisma.user.findUnique({ where: { email: input.email.toLowerCase() } });
   if (existing) throw errors.conflict("Email already registered");
-  const count = await prisma.user.count();
-  const role = count === 0 ? "admin" : "associate";
+  const role = input.role;
   const passwordHash = await hashPassword(input.password);
   const user = await prisma.user.create({
     data: {
@@ -94,4 +98,39 @@ export async function listUsers() {
     },
   });
   return users;
+}
+
+export async function onboardUser(
+  actorId: string,
+  input: {
+    email: string;
+    name: string;
+    password: string;
+    role: AuthUser["role"];
+    reportsToId?: string | null;
+  },
+) {
+  const existing = await prisma.user.findUnique({ where: { email: input.email.toLowerCase() } });
+  if (existing) throw errors.conflict("Email already registered");
+  if (input.reportsToId) {
+    const manager = await prisma.user.findUnique({ where: { id: input.reportsToId } });
+    if (!manager) throw errors.notFound("Manager");
+  }
+  const user = await prisma.user.create({
+    data: {
+      email: input.email.toLowerCase(),
+      name: input.name.trim(),
+      passwordHash: await hashPassword(input.password),
+      role: input.role,
+      reportsToId: input.reportsToId ?? null,
+    },
+  });
+  await writeAudit({
+    actorId,
+    action: "user.onboarded",
+    entityType: "user",
+    entityId: user.id,
+    metadata: { role: user.role },
+  });
+  return publicUser(user);
 }

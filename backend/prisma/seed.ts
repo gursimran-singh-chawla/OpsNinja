@@ -9,8 +9,8 @@ async function main() {
   await prisma.mention.deleteMany();
   await prisma.comment.deleteMany();
   await prisma.notification.deleteMany();
-  await prisma.caseAccess.deleteMany();
-  await prisma.case.deleteMany();
+  await prisma.taskAccess.deleteMany();
+  await prisma.task.deleteMany();
   await prisma.conversationParticipant.deleteMany();
   await prisma.conversation.deleteMany();
   await prisma.session.deleteMany();
@@ -98,31 +98,114 @@ async function main() {
     },
   });
 
-  const vendorMiss = await prisma.case.create({
+  const extraLeads = [
+    ["Noah Kim", "noah.kim@harborlane.example"],
+    ["Elena Rossi", "elena.rossi@harborlane.example"],
+    ["Jamal Wright", "jamal.wright@harborlane.example"],
+    ["Priya Desai", "priya.desai@harborlane.example"],
+  ] as const;
+  const moreLeads = [];
+  for (const [name, email] of extraLeads) {
+    moreLeads.push(await prisma.user.create({ data: { name, email, role: "lead", passwordHash: hash } }));
+  }
+  const leads = [sarah, ...moreLeads];
+
+  const extraManagers = [
+    ["Chris Dalton", "chris.dalton@harborlane.example"],
+    ["Maya Chen", "maya.chen@harborlane.example"],
+    ["Owen Blake", "owen.blake@harborlane.example"],
+    ["Sofia Alvarez", "sofia.alvarez@harborlane.example"],
+    ["Ben Okoye", "ben.okoye@harborlane.example"],
+    ["Hannah Lee", "hannah.lee@harborlane.example"],
+    ["Tomás Silva", "tomas.silva@harborlane.example"],
+    ["Aisha Rahman", "aisha.rahman@harborlane.example"],
+    ["Greg Walsh", "greg.walsh@harborlane.example"],
+    ["Nina Patel", "nina.patel@harborlane.example"],
+    ["Leo Nakamura", "leo.nakamura@harborlane.example"],
+    ["Claire Dubois", "claire.dubois@harborlane.example"],
+    ["Samir Haddad", "samir.haddad@harborlane.example"],
+  ] as const;
+  const moreManagers = [];
+  for (let i = 0; i < extraManagers.length; i++) {
+    const [name, email] = extraManagers[i];
+    moreManagers.push(
+      await prisma.user.create({
+        data: { name, email, role: "manager", reportsToId: leads[i % leads.length].id, passwordHash: hash },
+      }),
+    );
+  }
+  const managers = [marcus, lena, ...moreManagers];
+
+  const extraAssociates = [
+    ["Tara Singh", "tara.singh@harborlane.example"],
+    ["Luis Ortega", "luis.ortega@harborlane.example"],
+    ["Emma Brooks", "emma.brooks@harborlane.example"],
+    ["Kai Nakamura", "kai.nakamura@harborlane.example"],
+    ["Nora Feldman", "nora.feldman@harborlane.example"],
+    ["Ibrahim Saleh", "ibrahim.saleh@harborlane.example"],
+    ["Chloe Martin", "chloe.martin@harborlane.example"],
+    ["Andre Cole", "andre.cole@harborlane.example"],
+    ["Yuki Tanaka", "yuki.tanaka@harborlane.example"],
+    ["Paula Mendes", "paula.mendes@harborlane.example"],
+    ["Ryan Foster", "ryan.foster@harborlane.example"],
+    ["Mei Lin", "mei.lin@harborlane.example"],
+    ["Omar Farouk", "omar.farouk@harborlane.example"],
+    ["Grace Okafor", "grace.okafor@harborlane.example"],
+    ["Pavel Novak", "pavel.novak@harborlane.example"],
+    ["Jade Nguyen", "jade.nguyen@harborlane.example"],
+    ["Seth Cohen", "seth.cohen@harborlane.example"],
+    ["Ines Moreau", "ines.moreau@harborlane.example"],
+    ["Diego Vargas", "diego.vargas@harborlane.example"],
+    ["Lila Shah", "lila.shah@harborlane.example"],
+    ["Hank Miller", "hank.miller@harborlane.example"],
+    ["Zara Ahmed", "zara.ahmed@harborlane.example"],
+    ["Finn Gallagher", "finn.gallagher@harborlane.example"],
+    ["Noor Elamin", "noor.elamin@harborlane.example"],
+    ["Cara Jennings", "cara.jennings@harborlane.example"],
+    ["Mateo Ruiz", "mateo.ruiz@harborlane.example"],
+  ] as const;
+  for (let i = 0; i < extraAssociates.length; i++) {
+    const [name, email] = extraAssociates[i];
+    const freeAgent = i >= extraAssociates.length - 3;
+    await prisma.user.create({
+      data: {
+        name,
+        email,
+        role: "associate",
+        reportsToId: freeAgent ? null : managers[i % managers.length].id,
+        passwordHash: hash,
+      },
+    });
+  }
+
+  const vendorMiss = await prisma.task.create({
     data: {
       title: "Vendor Northline missed DC-4 delivery window",
       description:
         "Inbound appointment 06:00–08:00 slipped to 14:20. Produce cooler at 8°C. Store 184 already short on mixed greens.",
       category: "vendor",
+      workKind: "escalation",
+      priority: "urgent",
+      dueAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
       createdById: sarah.id,
       visibilityType: "DIRECT",
       assigneeId: ravi.id,
       assignedById: sarah.id,
-      redFlag: true,
     },
   });
-  await prisma.caseAccess.createMany({
+  await prisma.taskAccess.createMany({
     data: [
-      { caseId: vendorMiss.id, userId: ravi.id, grantedById: sarah.id, accessType: "ASSIGNEE" },
-      { caseId: vendorMiss.id, userId: marcus.id, grantedById: sarah.id, accessType: "VIEW" },
+      { taskId: vendorMiss.id, userId: ravi.id, grantedById: sarah.id, accessType: "ASSIGNEE" },
+      { taskId: vendorMiss.id, userId: marcus.id, grantedById: sarah.id, accessType: "VIEW" },
     ],
   });
 
-  await prisma.case.create({
+  await prisma.task.create({
     data: {
       title: "Pallet wrap failure — aisle 12 frozen",
       description: "Three pallets of SKU FZ-229 shifted. Shrink wrap snapped during inbound. No injuries.",
       category: "inventory",
+      workKind: "task",
       createdById: marcus.id,
       visibilityType: "TEAM",
       visibilityManagerId: marcus.id,
@@ -131,11 +214,14 @@ async function main() {
     },
   });
 
-  await prisma.case.create({
+  await prisma.task.create({
     data: {
-      title: "Store 62 escalation: empty dairy bay",
+      title: "Store 62: empty dairy bay recovery",
       description: "Night fill did not land. Regional merchandiser asked for a same-day recovery plan.",
       category: "escalation",
+      workKind: "escalation",
+      priority: "high",
+      dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       createdById: lena.id,
       visibilityType: "GLOBAL",
       assigneeId: dio.id,
@@ -143,15 +229,33 @@ async function main() {
     },
   });
 
-  await prisma.case.create({
+  await prisma.task.create({
     data: {
-      title: "Free-agent coverage: weekend sorter gap",
+      title: "Weekend sorter gap at west cross-dock",
       description: "Need a trained sorter Saturday 22:00–06:00 at the west cross-dock. Not tied to a standing team.",
       category: "other",
+      workKind: "backlog",
+      priority: "low",
       createdById: sarah.id,
       visibilityType: "DIRECT",
-      assigneeId: amira.id,
-      assignedById: sarah.id,
+      assigneeId: null,
+    },
+  });
+
+  await prisma.task.create({
+    data: {
+      title: "Cooler door alarm — store 184",
+      description: "Door left ajar after inbound. Temperature recovered. Logged for facilities follow-up.",
+      category: "other",
+      workKind: "report",
+      metadata: {
+        reportType: "equipment",
+        location: "Store 184 produce cooler",
+        occurredAt: new Date().toISOString(),
+      },
+      createdById: ravi.id,
+      visibilityType: "TEAM",
+      visibilityManagerId: marcus.id,
     },
   });
 
@@ -160,14 +264,14 @@ async function main() {
     data: {
       conversationId: global.id,
       senderId: ravi.id,
-      body: "Northline missed DC-4 again. Cooler is climbing. Opening a case if Sarah has not already.",
+      body: "Northline missed DC-4 again. Cooler is climbing. Opening a task if Sarah has not already.",
     },
   });
   await prisma.message.create({
     data: {
       conversationId: global.id,
       senderId: sarah.id,
-      body: "I routed it direct to Ravi. Marcus, you will get the notification but the case is not team-wide.",
+      body: "I routed it direct to Ravi. Marcus, you will get the notification but the task is not team-wide.",
     },
   });
 
@@ -178,8 +282,10 @@ async function main() {
     ],
   });
 
+  const counts = await prisma.user.groupBy({ by: ["role"], _count: true });
   console.log("Seeded Harborlane demo. Password for all users:", password);
   console.log("Lead:", sarah.email, "Manager:", marcus.email, "Associate:", ravi.email, "Free agent:", amira.email, "Admin:", admin.email);
+  console.log("Headcount:", Object.fromEntries(counts.map((c) => [c.role, c._count])));
 }
 
 main()

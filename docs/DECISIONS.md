@@ -61,3 +61,23 @@ Master prompt supersedes teaching-first development. Status: current.
 ## ADR-015 Hosting
 
 Prefer Vercel + Render + managed Postgres. Serving SPA from Express on Render is allowed if cookies/WebSockets are more reliable. Status: current design, not yet deployed.
+
+## ADR-016 Tasks, not cases
+
+The operational unit is a **Task**. API `/api/tasks`, Prisma `Task`. Status: current.
+
+## ADR-017 Due is overdue deadline
+
+**Due** means an open task whose `dueAt` is in the past. Manual red-flag UX is retired. Status: current.
+
+## ADR-018 Admin never sees task content
+
+Platform metrics are user/session/flag/audit **counts only**. Admin user onboard/offboard/role edits live on Platform. `/api/tasks` returns 403 for admin. Status: current.
+
+## ADR-019 Associate self-assign only
+
+Associates may set `assigneeId` to themselves on create or claim an unassigned visible task. They cannot assign others. Status: current.
+
+## ADR-020 Board is a view, not a second workflow
+
+The Board tab stores `boardColumn` (`TODO|IN_PROGRESS|IN_REVIEW|DONE`) and `boardRank` for layout. Done is kept in sync with `finishedAt`. Moving cards does not change creator, visibility, or assignee. Status: current.
