@@ -79,7 +79,7 @@ model User {
   reportsTo                 User?     @relation("ReportsTo", fields: [reportsToId], references: [id])
   reports                   User[]    @relation("ReportsTo")
   deactivatedAt              DateTime?
-  emailVerifiedAt            DateTime?
+  emailVerifiedAt            DateTime?  @default(now())
   emailVerificationCodeHash  String?
   emailVerificationExpiresAt DateTime?
   emailVerificationAttempts  Int       @default(0)
