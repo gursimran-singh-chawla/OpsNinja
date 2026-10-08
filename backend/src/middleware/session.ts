@@ -23,6 +23,7 @@ export const attachSession: RequestHandler = async (req, _res, next) => {
       role: session.user.role,
       reportsToId: session.user.reportsToId,
       deactivatedAt: session.user.deactivatedAt,
+      emailVerifiedAt: session.user.emailVerifiedAt,
     };
     next();
   } catch (e) {
