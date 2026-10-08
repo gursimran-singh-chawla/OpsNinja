@@ -19,6 +19,9 @@ const schema = z.object({
   COOKIE_SAMESITE: z.enum(["lax", "strict", "none"]).default("lax"),
   AI_PROVIDER: z.string().default("none"),
   AI_API_KEY: z.string().optional().default(""),
+  RESEND_API_KEY: z.string().optional().default(""),
+  EMAIL_FROM: z.string().default("OpsNinja <onboarding@resend.dev>"),
+  TURNSTILE_SECRET_KEY: z.string().optional().default(""),
   LOG_LEVEL: z.string().default("info"),
 });
 
