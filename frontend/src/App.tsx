@@ -3,6 +3,7 @@ import { useAuth } from "./auth";
 import { Shell } from "./Shell";
 import { Login } from "./pages/Login";
 import { Signup } from "./pages/Signup";
+import { VerifyEmail } from "./pages/VerifyEmail";
 import { Summary } from "./pages/Summary";
 import { List } from "./pages/List";
 import { Board } from "./pages/Board";
@@ -14,18 +15,22 @@ import { Admin } from "./pages/Admin";
 
 export function App() {
   const { user, loading } = useAuth();
+
   if (loading) {
     return <div className="grid min-h-screen place-items-center text-sm text-muted">Loading session…</div>;
   }
+
   if (!user) {
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
   }
+
   return (
     <Shell>
       <Routes>
