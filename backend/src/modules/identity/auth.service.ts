@@ -131,7 +131,7 @@ export async function verifyEmail(emailInput: string, codeInput: string) {
 
   if (!user) throw errors.badRequest("Invalid verification code");
   if (user.emailVerifiedAt) {
-    return { sessionId: await createSession(user.id), user: publicUser(user) };
+    throw errors.badRequest("Email is already verified. Please sign in.");
   }
 
   if (!/^\d{6}$/.test(code)) {
