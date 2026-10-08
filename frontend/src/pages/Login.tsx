@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
 import { btnPrimary, field, roleBadgeClass } from "../ui";
 
@@ -13,6 +13,7 @@ const demos = [
 
 export function Login() {
   const { login } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState("sarah.okonkwo@harborlane.example");
   const [password, setPassword] = useState("Harborlane!26");
   const [error, setError] = useState<string | null>(null);
@@ -25,20 +26,21 @@ export function Login() {
     try {
       await login(email, password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      const message = err instanceof Error ? err.message : "Login failed";
+      setError(message);
     } finally {
       setBusy(false);
     }
   }
 
+  const needsVerification = error?.toLowerCase().includes("verify") ?? false;
+
   return (
     <div className="relative min-h-screen flex items-center justify-center p-4 sm:p-6 overflow-hidden">
-      {/* Ambient background glow accents */}
       <div className="absolute -top-40 -left-40 h-96 w-96 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
       <div className="absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-violet-500/10 blur-3xl pointer-events-none" />
 
       <div className="relative w-full max-w-md rounded-2xl border border-slate-200/80 bg-white/95 backdrop-blur-xl p-6 sm:p-8 shadow-xl shadow-slate-200/50 animate-fade-in">
-        {/* Header */}
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white font-bold shadow-md shadow-indigo-500/20 text-base">
             ON
@@ -56,7 +58,6 @@ export function Login() {
           Turn operational friction into accountable, visible tasks.
         </p>
 
-        {/* Login Form */}
         <form className="mt-6 space-y-4" onSubmit={(e) => void onSubmit(e)}>
           <div>
             <label className="block text-xs font-medium text-ink-muted">Work email</label>
@@ -86,9 +87,20 @@ export function Login() {
           </div>
 
           {error ? (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-xs text-due flex items-center gap-2">
-              <span>⚠️</span>
-              <span>{error}</span>
+            <div className="rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-xs text-due flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2">
+                <span>⚠️</span>
+                <span>{error}</span>
+              </span>
+              {needsVerification ? (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/verify-email?email=${encodeURIComponent(email)}`)}
+                  className="shrink-0 font-semibold text-brand hover:underline"
+                >
+                  Verify
+                </button>
+              ) : null}
             </div>
           ) : null}
 
@@ -111,7 +123,6 @@ export function Login() {
           </Link>
         </p>
 
-        {/* Quick Demo Accounts Switcher */}
         <div className="mt-7 pt-5 border-t border-border-subtle">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
