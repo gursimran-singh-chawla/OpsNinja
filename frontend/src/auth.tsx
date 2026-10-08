@@ -7,13 +7,28 @@ export type User = {
   name: string;
   role: "admin" | "lead" | "manager" | "associate";
   reportsToId: string | null;
+  deactivatedAt?: string | null;
+  emailVerifiedAt: string | null;
+};
+
+type SignupResult = {
+  email: string;
+  verificationRequired: boolean;
 };
 
 const Ctx = createContext<{
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (input: { name: string; email: string; password: string; role: "lead" | "manager" | "associate" }) => Promise<void>;
+  signup: (input: {
+    name: string;
+    email: string;
+    password: string;
+    role: "lead" | "manager" | "associate";
+    turnstileToken?: string;
+  }) => Promise<SignupResult>;
+  verifyEmail: (email: string, code: string) => Promise<void>;
+  resendVerification: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 } | null>(null);
@@ -50,12 +65,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
           setUser(me);
         },
-        signup: async (input) => {
-          const me = await api<User>("/api/auth/register", {
+        signup: async (input) =>
+          api<SignupResult>("/api/auth/register", {
             method: "POST",
             body: JSON.stringify(input),
+          }),
+        verifyEmail: async (email, code) => {
+          const me = await api<User>("/api/auth/verify-email", {
+            method: "POST",
+            body: JSON.stringify({ email, code }),
           });
           setUser(me);
+        },
+        resendVerification: async (email) => {
+          await api("/api/auth/resend-verification", {
+            method: "POST",
+            body: JSON.stringify({ email }),
+          });
         },
         logout: async () => {
           await api("/api/auth/logout", { method: "POST" });
