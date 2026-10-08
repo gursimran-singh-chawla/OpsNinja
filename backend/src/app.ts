@@ -26,9 +26,22 @@ export function createApp() {
   app.use(express.json({ limit: "256kb" }));
   app.use(cookieParser());
   app.use(attachSession);
+
+  const authRateLimit = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use("/api/auth/login", authRateLimit);
+  app.use("/api/auth/register", authRateLimit);
   app.use(
-    "/api/auth/login",
-    rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false }),
+    "/api/auth/verify-email",
+    rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false }),
+  );
+  app.use(
+    "/api/auth/resend-verification",
+    rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false }),
   );
 
   app.get("/api/health", (_req, res) => {
