@@ -27,7 +27,7 @@ Operational issues at Harborlane scatter across email, spreadsheets, and chat. O
 
 | Role | Purpose |
 |---|---|
-| Admin | User onboard/offboard, roles, reporting lines, feature flags, **system metrics with no task content**. Not a task superuser. Optional logged read-only break-glass. |
+| Admin | User onboard/offboard, roles, reporting lines, feature flags, **system metrics with no task content**. Not a task superuser. Strictly no task content access. |
 | Lead | Organization-wide operational visibility, routing, dashboards, full task verbs. |
 | Manager | Own team + free-agent Associates. Cannot assign another Manager’s Associates. |
 | Associate | Do assigned work. May **self-assign** unassigned visible tasks. May not assign others. May be a free agent (`reportsToId` null). |
@@ -72,17 +72,23 @@ Retail domain category remains: `normal`, `escalation`, `inventory`, `vendor`, `
 
 One global conversation. One-to-one DMs. Mentions create records and notifications. Task comments are a separate thread.
 
-## AI
+## AI (SimuAI)
 
-Summary, suggested next actions, catch-up on tasks the user can already view. Failures do not block tasks or chat. RAG is **future**.
+OpsNinja includes **SimuAI** as an assistance and synthesis layer:
+- **Identity:** SimuAI operates strictly under the authorization of the viewing user. It never mutates tasks directly; operational users remain accountable.
+- **On-Demand Briefing:** Generates role-tailored operational briefings on the `Summary` dashboard (overdue items, urgent tasks, queue health, routing priorities).
+- **TaskDetail Assist:** Provides on-demand **Summary**, **Next Actions** (actionable checklists), and **Catch-Up** (comment activity digest).
+- **Workflow Speed:** One-click **Copy to clipboard** and **Insert into comment** (pre-fills the comment textarea for user review and edit).
+- **Graceful Fallback:** Provider interface defaults to a deterministic, zero-key **Mock Engine**, and automatically falls back if external LLM APIs (e.g. Google Gemini) are unavailable, ensuring the application is never blocked by AI downtime.
+- RAG / Knowledge Base is **future**.
 
 ## Stack
 
-React + TypeScript + Vite + Tailwind · Express + TypeScript · PostgreSQL + Prisma · Socket.IO · LLM API behind a provider interface.
+React + TypeScript + Vite + Tailwind · Express + TypeScript · PostgreSQL + Prisma · Socket.IO · SimuAI provider abstraction (Gemini / Mock).
 
 ## Implemented
 
-Auth (session cookies, Argon2id), roles, task CRUD with visibility/assignment policy, role-aware Summary, List, Board (kanban), Create dropdown, global chat + DMs, notifications, admin platform (metrics + user lifecycle).
+Auth (session cookies, Argon2id), roles, task CRUD with visibility/assignment policy, role-aware Summary, List, Board (kanban), Create dropdown, global chat + DMs, notifications, admin platform (metrics + user lifecycle), SimuAI assistance (briefings, summaries, next actions, catch-up).
 
 ## Future (deferred)
 

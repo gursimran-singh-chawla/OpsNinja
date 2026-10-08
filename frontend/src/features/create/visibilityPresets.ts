@@ -16,7 +16,7 @@ export function audienceOptions(role: string, reportsToId: string | null): Audie
   const everyone: AudienceOption = {
     key: "GLOBAL",
     title: "Everyone in ops",
-    blurb: "Visible to leads, managers, and associates across Harborlane.",
+    blurb: "Visible to leads, managers, and associates across IG Incorporation.",
   };
   if (role === "associate") {
     const opts = [everyone];

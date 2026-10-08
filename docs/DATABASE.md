@@ -37,8 +37,8 @@ Recipient, type (`mention`, `task_assigned`, `task_shared`, `task_routed_to_mana
 ### AuditEvent
 Append-only (`task.created`, `task.assigned`, `task.visibility_changed`, `user.onboarded`, …). `entityType` `task` | `user`.
 
-### FeatureFlag / BreakGlassSession / BreakGlassAccess
-Break-glass access logs `taskId`.
+### FeatureFlag
+Boolean toggles for operational features.
 
 ## Indexes
 

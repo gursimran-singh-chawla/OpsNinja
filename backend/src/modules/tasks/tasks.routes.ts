@@ -4,6 +4,7 @@ import { asyncHandler } from "../../lib/asyncHandler.js";
 import { requireAuth } from "../../middleware/requireAuth.js";
 import { errors } from "../../lib/errors.js";
 import * as tasks from "./tasks.service.js";
+import * as aiService from "../ai/ai.service.js";
 
 export const tasksRouter = Router();
 tasksRouter.use(requireAuth);
@@ -163,3 +164,37 @@ tasksRouter.post(
     res.status(201).json({ data: await tasks.addComment(req.user!, req.params.id, body.body) });
   }),
 );
+
+// SimuAI endpoints
+tasksRouter.post(
+  "/ai/briefing",
+  asyncHandler(async (req, res) => {
+    if (req.user?.role === "admin") throw errors.forbidden();
+    res.json({ data: { briefing: await aiService.generateBriefing(req.user!) } });
+  }),
+);
+
+tasksRouter.post(
+  "/:id/ai/summary",
+  asyncHandler(async (req, res) => {
+    if (req.user?.role === "admin") throw errors.forbidden();
+    res.json({ data: { summary: await aiService.summarizeTask(req.user!, req.params.id) } });
+  }),
+);
+
+tasksRouter.post(
+  "/:id/ai/actions",
+  asyncHandler(async (req, res) => {
+    if (req.user?.role === "admin") throw errors.forbidden();
+    res.json({ data: { actions: await aiService.suggestNextActions(req.user!, req.params.id) } });
+  }),
+);
+
+tasksRouter.post(
+  "/:id/ai/catch-up",
+  asyncHandler(async (req, res) => {
+    if (req.user?.role === "admin") throw errors.forbidden();
+    res.json({ data: { catchUp: await aiService.catchUpTask(req.user!, req.params.id) } });
+  }),
+);
+

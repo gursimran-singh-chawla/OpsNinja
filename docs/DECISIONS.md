@@ -20,7 +20,7 @@ HTTP-only session id cookie. Role from User. No localStorage JWT. Status: curren
 
 ## ADR-005 Platform vs operations power
 
-Admin manages users/flags/metrics. Not silent case god-mode. Break-glass: reason, expiry, logged, read-only. Status: current.
+Admin manages users/flags/metrics. Not silent task god-mode. Admin sees strictly no task content (no break-glass). Status: current.
 
 ## ADR-006 Explicit visibility (supersedes reporting-derived visibility)
 

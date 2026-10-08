@@ -23,7 +23,7 @@ Do not optimize for teaching during implementation. Interview walkthroughs happe
 - Visibility types: `GLOBAL` | `TEAM` | `DIRECT`.
 - Associates may be free agents (`reportsToId` null). Not a fifth role.
 - Lead, Manager, and Associate may create tasks (all work kinds). Post-create permissions depend on role, visibility, assignment, and policy.
-- Admin is platform power, not a task superuser. Admin sees **no task content**. Break-glass is explicit, logged, read-only, expiring.
+- Admin is platform power, not a task superuser. Admin sees **no task content** (no exceptions).
 - Manager cannot assign another Manager’s Associates. Free agents may be assigned by authorized Managers/Leads.
 - Associates cannot assign others. They may **self-assign** an unassigned visible task or remain unassigned.
 - Lead has organization-wide operational visibility.
@@ -61,7 +61,7 @@ Passwords: Argon2id via hash-wasm (WASM; no native Windows toolchain required).
 
 ## Implementation order
 
-Foundation → Postgres/Prisma → auth → policy → tasks → visibility → assignment → lifecycle → audit → dashboards → search → global chat → DMs → mentions/notifications → chat/task linking → people/admin → break-glass → deploy → AI → RAG if stable → polish → security → CI → README.
+Foundation → Postgres/Prisma → auth → policy → tasks → visibility → assignment → lifecycle → audit → dashboards → search → global chat → DMs → mentions/notifications → chat/task linking → people/admin → deploy → AI → RAG if stable → polish → security → CI → README.
 
 ## Communication with the developer
 

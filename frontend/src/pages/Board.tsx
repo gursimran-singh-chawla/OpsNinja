@@ -4,7 +4,7 @@ import { api } from "../api";
 import { useAuth } from "../auth";
 import { CreateTaskMenu } from "../features/create/CreateTaskMenu";
 import { defaultAudience, toApiPayload } from "../features/create/visibilityPresets";
-import { formatVisibility, isOverdue } from "../ui";
+import { formatVisibility, isOverdue, priorityBadgeClass } from "../ui";
 
 type BoardColumnKey = "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
 
@@ -24,11 +24,11 @@ type BoardTask = {
   assignee: { id: string; name: string } | null;
 };
 
-const COLUMNS: { key: BoardColumnKey; title: string }[] = [
-  { key: "TODO", title: "To Do" },
-  { key: "IN_PROGRESS", title: "In Progress" },
-  { key: "IN_REVIEW", title: "In Review" },
-  { key: "DONE", title: "Done" },
+const COLUMNS: { key: BoardColumnKey; title: string; dot: string }[] = [
+  { key: "TODO", title: "To Do", dot: "bg-slate-400" },
+  { key: "IN_PROGRESS", title: "In Progress", dot: "bg-indigo-500" },
+  { key: "IN_REVIEW", title: "In Review", dot: "bg-amber-500" },
+  { key: "DONE", title: "Done", dot: "bg-emerald-500" },
 ];
 
 const kindLabel: Record<string, string> = {
@@ -44,10 +44,10 @@ function initials(name: string) {
 }
 
 function avatarColor(name: string) {
-  const hues = [160, 24, 200, 280, 40, 340];
+  const hues = [220, 260, 160, 24, 200, 280];
   let n = 0;
   for (const c of name) n = (n + c.charCodeAt(0)) % hues.length;
-  return `hsl(${hues[n]} 45% 38%)`;
+  return `hsl(${hues[n]} 65% 42%)`;
 }
 
 function taskKey(id: string) {
@@ -81,86 +81,111 @@ export function Board() {
   }, []);
 
   const visible = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    const list = (rows ?? []).filter((t) => {
-      if (!needle) return true;
-      return (
-        t.title.toLowerCase().includes(needle) ||
-        t.createdBy.name.toLowerCase().includes(needle) ||
-        (t.assignee?.name ?? "").toLowerCase().includes(needle)
-      );
-    });
-    return list;
+    if (!rows) return [];
+    const term = q.trim().toLowerCase();
+    if (!term) return rows;
+    return rows.filter(
+      (t) =>
+        t.title.toLowerCase().includes(term) ||
+        taskKey(t.id).toLowerCase().includes(term) ||
+        t.priority.toLowerCase().includes(term) ||
+        (t.assignee?.name ?? "").toLowerCase().includes(term),
+    );
   }, [rows, q]);
 
-  function cardsIn(column: BoardColumnKey) {
-    return visible.filter((t) => t.boardColumn === column).sort(sortCol);
+  function cardsIn(col: BoardColumnKey) {
+    return visible.filter((t) => t.boardColumn === col).sort(sortCol);
   }
 
-  async function persistMove(id: string, column: BoardColumnKey, index: number) {
-    const snapshot = rows;
-    const moving = rows?.find((t) => t.id === id);
-    if (!moving || !rows) return;
-    const others = rows.filter((t) => t.id !== id);
-    const col = others.filter((t) => t.boardColumn === column).sort(sortCol);
-    const clamped = Math.max(0, Math.min(index, col.length));
-    const prev = col[clamped - 1];
-    const next = col[clamped];
-    const optimistic: BoardTask = {
-      ...moving,
-      boardColumn: column,
-      boardRank: `${prev?.boardRank ?? "000000000000"}~`,
-    };
-    setRows([...others.filter((t) => t.boardColumn !== column), ...col.slice(0, clamped), optimistic, ...col.slice(clamped)]);
+  async function onDropColumn(targetCol: BoardColumnKey, dropIndex: number) {
+    if (!draggingId || !rows) return;
+    const item = rows.find((t) => t.id === draggingId);
+    if (!item) return;
+
+    const destCards = visible.filter((t) => t.boardColumn === targetCol && t.id !== draggingId).sort(sortCol);
+    const clamped = Math.max(0, Math.min(dropIndex, destCards.length));
+    const prev = clamped > 0 ? destCards[clamped - 1] : null;
+    const next = clamped < destCards.length ? destCards[clamped] : null;
+
+    setRows((prevRows) => {
+      if (!prevRows) return prevRows;
+      return prevRows.map((t) => {
+        if (t.id !== draggingId) return t;
+        const finishedAt = targetCol === "DONE" ? t.finishedAt ?? new Date().toISOString() : null;
+        return { ...t, boardColumn: targetCol, finishedAt };
+      });
+    });
+
+    setDraggingId(null);
+    setOver(null);
+
     try {
-      await api(`/api/tasks/${id}/board`, {
+      await api(`/api/tasks/${item.id}/board`, {
         method: "POST",
-        body: JSON.stringify({ boardColumn: column, prevId: prev?.id ?? null, nextId: next?.id ?? null }),
+        body: JSON.stringify({
+          boardColumn: targetCol,
+          prevId: prev?.id ?? null,
+          nextId: next?.id ?? null,
+        }),
       });
       await load();
     } catch (e) {
-      setRows(snapshot);
-      setErr(e instanceof Error ? e.message : "Could not move task");
+      setErr(e instanceof Error ? e.message : "Failed to move card");
+      await load();
     }
   }
 
-  function onDropColumn(column: BoardColumnKey, index: number) {
-    if (!draggingId) return;
-    void persistMove(draggingId, column, index);
-    setDraggingId(null);
-    setOver(null);
-  }
-
-  if (!user) return null;
-
   return (
-    <div className="flex min-h-[calc(100vh-180px)] flex-col">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="flex flex-col space-y-5 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-5">
         <div>
-          <h1 className="text-2xl font-semibold">Board</h1>
-          <p className="mt-1 text-sm text-muted">Same tasks as List, arranged by workflow. Drag cards between columns or up and down.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-ink">Operations Board</h1>
+          <p className="mt-1 text-xs sm:text-sm text-muted">
+            Drag cards between workflow stages. Moving to Done marks completion.
+          </p>
         </div>
         <CreateTaskMenu onCreated={() => void load()} />
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search board"
-          className="w-64 rounded-md border border-border bg-elevated px-3 py-2 text-sm outline-none focus:border-accent"
-        />
-        <span className="text-xs text-muted">{visible.length} tasks</span>
+      {/* Search & Counter */}
+      <div className="flex items-center gap-3">
+        <div className="relative w-72">
+          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted text-xs pointer-events-none">
+            🔍
+          </span>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Filter cards by title, ID, priority…"
+            className="w-full rounded-xl border border-slate-200/90 bg-white pl-8 pr-3 py-1.5 text-xs text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 shadow-2xs"
+          />
+        </div>
+        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 border border-slate-200 tabular-nums">
+          {visible.length} tasks
+        </span>
       </div>
-      {err ? <p className="mt-3 text-sm text-due">{err}</p> : null}
 
-      <div className="mt-4 flex min-h-0 flex-1 gap-3 overflow-x-auto pb-4">
+      {err ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-due flex items-center gap-2">
+          <span>⚠️</span>
+          <span>{err}</span>
+        </div>
+      ) : null}
+
+      {/* Kanban Columns */}
+      <div className="flex min-h-[calc(100vh-280px)] gap-4 overflow-x-auto pb-6">
         {COLUMNS.map((col) => {
           const cards = cardsIn(col.key);
+          const isOverThisCol = over?.column === col.key;
           return (
             <section
               key={col.key}
-              className="flex w-[272px] shrink-0 flex-col rounded-xl bg-[#ebecf0]"
+              className={`flex w-72 shrink-0 flex-col rounded-2xl border transition-all duration-150 ${
+                isOverThisCol
+                  ? "border-brand/40 bg-indigo-50/20 shadow-md"
+                  : "border-slate-200/80 bg-slate-100/60 shadow-2xs"
+              }`}
               onDragOver={(e) => {
                 e.preventDefault();
                 if (!over || over.column !== col.key) setOver({ column: col.key, index: cards.length });
@@ -170,12 +195,21 @@ export function Board() {
                 onDropColumn(col.key, over?.column === col.key ? over.index : cards.length);
               }}
             >
-              <header className="flex items-center justify-between px-3 py-3">
-                <h2 className="text-sm font-semibold text-ink">
-                  {col.title} {cards.length}
-                </h2>
+              {/* Column Header */}
+              <header className="flex items-center justify-between px-3.5 py-3 border-b border-slate-200/60">
+                <div className="flex items-center gap-2">
+                  <span className={`inline-block h-2 w-2 rounded-full ${col.dot}`} />
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-ink">
+                    {col.title}
+                  </h2>
+                </div>
+                <span className="rounded-md bg-white px-2 py-0.5 text-[11px] font-bold text-slate-600 border border-slate-200 shadow-2xs tabular-nums">
+                  {cards.length}
+                </span>
               </header>
-              <div className="flex flex-1 flex-col gap-2 px-2 pb-2">
+
+              {/* Cards list */}
+              <div className="flex flex-1 flex-col gap-2.5 p-2.5 overflow-y-auto">
                 {cards.map((t, i) => (
                   <div key={t.id}>
                     {over?.column === col.key && over.index === i ? <DropLine /> : null}
@@ -192,7 +226,15 @@ export function Board() {
                   </div>
                 ))}
                 {over?.column === col.key && over.index >= cards.length ? <DropLine /> : null}
-                <QuickCreate column={col.key} user={user} onCreated={() => void load()} onError={setErr} />
+
+                {user && (
+                  <QuickCreate
+                    column={col.key}
+                    user={user}
+                    onCreated={() => void load()}
+                    onError={setErr}
+                  />
+                )}
               </div>
             </section>
           );
@@ -203,7 +245,9 @@ export function Board() {
 }
 
 function DropLine() {
-  return <div className="mb-1 h-1 rounded-full bg-accent" />;
+  return (
+    <div className="my-1.5 h-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-indigo-600 shadow-sm shadow-indigo-500/50 animate-pulse" />
+  );
 }
 
 function BoardCard({
@@ -234,39 +278,59 @@ function BoardCard({
         e.stopPropagation();
         onDragOverCard();
       }}
-      className={`cursor-grab rounded-md border border-transparent bg-elevated p-3 shadow-sm hover:bg-white ${
-        dragging ? "opacity-40" : ""
+      className={`group relative rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-2xs hover:border-brand/40 hover:shadow-md transition-all cursor-grab active:cursor-grabbing ${
+        dragging ? "opacity-30 scale-95" : ""
       }`}
     >
       <div className="flex items-start justify-between gap-2">
-        <Link to={`/tasks/${task.id}`} className="text-sm font-medium text-ink hover:text-accent">
+        <Link
+          to={`/tasks/${task.id}`}
+          className="text-xs font-semibold text-ink group-hover:text-brand transition-colors line-clamp-2 leading-snug"
+        >
           {task.title}
         </Link>
         {task.assignee ? (
           <span
             title={task.assignee.name}
-            className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10px] font-semibold text-white"
+            className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10px] font-bold text-white shadow-2xs"
             style={{ background: avatarColor(task.assignee.name) }}
           >
             {initials(task.assignee.name)}
           </span>
         ) : (
-          <span title="Unassigned" className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-dashed border-border text-[10px] text-muted">
-            ·
+          <span
+            title="Unassigned"
+            className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-dashed border-slate-300 text-[10px] text-muted bg-slate-50"
+          >
+            ?
           </span>
         )}
       </div>
+
       {task.dueAt ? (
-        <div className={`mt-2 text-xs ${due ? "font-medium text-due" : "text-muted"}`}>
-          {due ? "Due · " : ""}
-          {new Date(task.dueAt).toLocaleDateString()}
+        <div className="mt-2.5 flex items-center gap-1.5 text-[11px]">
+          {due ? (
+            <span className="rounded bg-rose-100 px-1.5 py-0.2 font-bold text-rose-700 text-[10px]">
+              DUE
+            </span>
+          ) : (
+            <span className="text-muted">⏱️</span>
+          )}
+          <span className={due ? "text-rose-600 font-semibold" : "text-muted"}>
+            {new Date(task.dueAt).toLocaleDateString()}
+          </span>
         </div>
       ) : null}
-      <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted">
-        <span>
+
+      <div className="mt-3 flex items-center justify-between gap-2 pt-2 border-t border-slate-100 text-[10px] text-muted">
+        <span className="font-mono font-medium text-slate-500">
           {taskKey(task.id)} · {kindLabel[task.workKind] ?? task.workKind}
         </span>
-        <span className="truncate" title={formatVisibility(task)}>
+        <span
+          className={`rounded px-1.5 py-0.2 font-medium capitalize border ${priorityBadgeClass(
+            task.priority,
+          )}`}
+        >
           {task.priority}
         </span>
       </div>
@@ -300,7 +364,7 @@ function QuickCreate({
         method: "POST",
         body: JSON.stringify({
           title: trimmed,
-          description: "Added from the board.",
+          description: "Added directly from the board.",
           category: "normal",
           workKind: "task",
           priority: "normal",
@@ -335,17 +399,18 @@ function QuickCreate({
     return (
       <button
         type="button"
-        className="mt-1 rounded-md px-2 py-2 text-left text-sm text-muted hover:bg-white/80"
+        className="mt-1 flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-300/80 bg-white/50 px-3 py-2 text-xs font-semibold text-muted hover:border-brand hover:text-brand hover:bg-white transition cursor-pointer"
         onClick={() => setOpen(true)}
       >
-        + Create
+        <span>+</span>
+        <span>Add card</span>
       </button>
     );
   }
 
   return (
     <form
-      className="rounded-md border border-accent bg-elevated p-2 shadow-sm"
+      className="rounded-xl border border-brand/60 bg-white p-3 shadow-md animate-fade-in"
       onSubmit={(e: FormEvent) => {
         e.preventDefault();
         void submit();
@@ -358,14 +423,21 @@ function QuickCreate({
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={onKey}
         placeholder="What needs to be done?"
-        className="w-full resize-none text-sm outline-none"
+        className="w-full resize-none text-xs text-ink outline-none placeholder:text-muted/60"
       />
-      <div className="mt-1 flex justify-end gap-1">
-        <button type="button" className="px-2 py-1 text-xs text-muted" onClick={() => setOpen(false)}>
+      <div className="mt-2 flex items-center justify-end gap-1.5">
+        <button
+          type="button"
+          className="rounded-lg px-2.5 py-1 text-xs font-medium text-muted hover:text-ink transition cursor-pointer"
+          onClick={() => setOpen(false)}
+        >
           Cancel
         </button>
-        <button disabled={busy || title.trim().length < 3} className="rounded bg-accent px-2 py-1 text-xs text-white disabled:opacity-50">
-          {busy ? "Saving…" : "Add"}
+        <button
+          disabled={busy || title.trim().length < 3}
+          className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-semibold text-white shadow-2xs hover:bg-indigo-700 disabled:opacity-50 transition cursor-pointer"
+        >
+          {busy ? "Adding…" : "Add card"}
         </button>
       </div>
     </form>

@@ -452,6 +452,65 @@ export async function addComment(user: AuthUser, taskId: string, body: string) {
   return comment;
 }
 
+export type WeeklyTrendPoint = {
+  weekKey: string;
+  weekLabel: string;
+  startDate: string;
+  endDate: string;
+  task: number;
+  escalation: number;
+  backlog: number;
+  report: number;
+  total: number;
+};
+
+function computeWeeklyTrends(allTasks: TaskWithAccess[]): WeeklyTrendPoint[] {
+  const WEEKS_COUNT = 6;
+  const now = new Date();
+  const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+  // Align to Monday start of current week
+  const currentWeekStart = new Date(now);
+  const day = currentWeekStart.getDay();
+  const diff = currentWeekStart.getDate() - day + (day === 0 ? -6 : 1);
+  currentWeekStart.setDate(diff);
+  currentWeekStart.setHours(0, 0, 0, 0);
+
+  const points: WeeklyTrendPoint[] = [];
+
+  for (let i = WEEKS_COUNT - 1; i >= 0; i--) {
+    const weekStart = new Date(currentWeekStart.getTime() - i * ONE_WEEK_MS);
+    const weekEnd = new Date(weekStart.getTime() + ONE_WEEK_MS);
+
+    const weekTasks = allTasks.filter((t) => {
+      const created = new Date(t.createdAt).getTime();
+      return created >= weekStart.getTime() && created < weekEnd.getTime();
+    });
+
+    const taskCount = weekTasks.filter((t) => t.workKind === "task").length;
+    const escalationCount = weekTasks.filter((t) => t.workKind === "escalation").length;
+    const backlogCount = weekTasks.filter((t) => t.workKind === "backlog").length;
+    const reportCount = weekTasks.filter((t) => t.workKind === "report").length;
+
+    const startFmt = weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const endFmt = new Date(weekEnd.getTime() - 1).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+    points.push({
+      weekKey: i === 0 ? "Current" : `W-${i}`,
+      weekLabel: `${startFmt} – ${endFmt}`,
+      startDate: weekStart.toISOString(),
+      endDate: weekEnd.toISOString(),
+      task: taskCount,
+      escalation: escalationCount,
+      backlog: backlogCount,
+      report: reportCount,
+      total: weekTasks.length,
+    });
+  }
+
+  return points;
+}
+
 export async function dashboard(user: AuthUser) {
   assertOps(user);
   const tasks = await listTasks(user, { archived: false });
@@ -469,6 +528,10 @@ export async function dashboard(user: AuthUser) {
     report: tasks.filter((t) => t.workKind === "report").length,
   };
 
+  const archivedTasks = await listTasks(user, { archived: true });
+  const allHistoricalTasks = [...tasks, ...archivedTasks];
+  const weeklyTrends = computeWeeklyTrends(allHistoricalTasks);
+
   const base = {
     open: open.length,
     due: due.length,
@@ -482,6 +545,7 @@ export async function dashboard(user: AuthUser) {
       assignedOpen: assignedOpen.length,
     },
     byWorkKind,
+    weeklyTrends,
   };
 
   if (user.role === "associate") {
@@ -518,7 +582,7 @@ export async function dashboard(user: AuthUser) {
     role: "lead" as const,
     title: "Operations command",
     cards: [
-      { key: "open", label: "Open", value: open.length, hint: "Across Harborlane ops" },
+      { key: "open", label: "Open", value: open.length, hint: "Across IG Incorporation ops" },
       { key: "unassigned", label: "Unassigned", value: unassigned.length, hint: "No owner yet" },
       { key: "due", label: "Due", value: due.length, hint: "Past deadline" },
       { key: "complete", label: "Complete", value: complete.length, hint: "Finished on the board" },

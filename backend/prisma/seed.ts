@@ -259,6 +259,42 @@ async function main() {
     },
   });
 
+  // Seed historical tasks across past weeks for line chart trends
+  const pastDays = [
+    { daysAgo: 35, title: "Q3 Safety audit — bay doors 1-4", kind: "report", category: "other", priority: "normal", by: sarah.id, vis: "GLOBAL" as const },
+    { daysAgo: 33, title: "Pallet racking inspection DC-2", kind: "task", category: "inventory", priority: "normal", by: marcus.id, vis: "GLOBAL" as const },
+    { daysAgo: 30, title: "Forklift hydraulic fluid leak report", kind: "report", category: "other", priority: "high", by: ravi.id, vis: "GLOBAL" as const },
+    { daysAgo: 28, title: "Overstock staging area overflow", kind: "backlog", category: "inventory", priority: "low", by: lena.id, vis: "GLOBAL" as const },
+    { daysAgo: 25, title: "Store 44 freezer breakdown incident", kind: "escalation", category: "other", priority: "urgent", by: sarah.id, vis: "GLOBAL" as const },
+    { daysAgo: 22, title: "Barcode scanner firmware mismatch", kind: "task", category: "other", priority: "normal", by: marcus.id, vis: "GLOBAL" as const },
+    { daysAgo: 20, title: "Vendor return backlog — dry goods", kind: "backlog", category: "vendor", priority: "low", by: lena.id, vis: "GLOBAL" as const },
+    { daysAgo: 16, title: "Supplier delivery variance — dairy", kind: "escalation", category: "vendor", priority: "high", by: sarah.id, vis: "GLOBAL" as const },
+    { daysAgo: 14, title: "Aisle 8 shelf alignment and labeling", kind: "task", category: "normal", priority: "normal", by: marcus.id, vis: "GLOBAL" as const },
+    { daysAgo: 12, title: "Customer slip incident report — Store 12", kind: "report", category: "customer", priority: "high", by: ravi.id, vis: "GLOBAL" as const },
+    { daysAgo: 8, title: "Weekend cross-dock scheduling review", kind: "task", category: "other", priority: "normal", by: lena.id, vis: "GLOBAL" as const },
+    { daysAgo: 7, title: "Emergency sprinkler check report", kind: "report", category: "other", priority: "normal", by: sarah.id, vis: "GLOBAL" as const },
+    { daysAgo: 4, title: "Express lane register malfunction", kind: "escalation", category: "customer", priority: "urgent", by: marcus.id, vis: "GLOBAL" as const },
+    { daysAgo: 2, title: "Shrink wrap supplier defect inquiry", kind: "task", category: "vendor", priority: "normal", by: lena.id, vis: "GLOBAL" as const },
+  ];
+
+  for (const item of pastDays) {
+    const pastDate = new Date(Date.now() - item.daysAgo * 24 * 60 * 60 * 1000);
+    await prisma.task.create({
+      data: {
+        title: item.title,
+        description: `Operational record logged ${item.daysAgo} days ago for pattern tracking and history.`,
+        category: item.category,
+        workKind: item.kind,
+        priority: item.priority,
+        createdById: item.by,
+        visibilityType: item.vis,
+        createdAt: pastDate,
+        updatedAt: pastDate,
+        finishedAt: item.daysAgo > 10 ? new Date(pastDate.getTime() + 2 * 24 * 60 * 60 * 1000) : null,
+      },
+    });
+  }
+
   const global = await prisma.conversation.create({ data: { type: "GLOBAL" } });
   await prisma.message.create({
     data: {

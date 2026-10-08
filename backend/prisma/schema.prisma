@@ -93,7 +93,6 @@ model User {
   mentions                  Mention[]                 @relation("MentionedUser")
   notifications             Notification[]
   auditEvents               AuditEvent[]
-  breakGlassSessions        BreakGlassSession[]
   conversationsCreated      Conversation[]
   participants              ConversationParticipant[]
   messages                  Message[]
@@ -269,23 +268,3 @@ model FeatureFlag {
   updatedAt DateTime @updatedAt
 }
 
-model BreakGlassSession {
-  id          String             @id @default(uuid())
-  adminUserId String
-  admin       User               @relation(fields: [adminUserId], references: [id], onDelete: Restrict)
-  reason      String
-  startedAt   DateTime           @default(now())
-  expiresAt   DateTime
-  endedAt     DateTime?
-  accesses    BreakGlassAccess[]
-}
-
-model BreakGlassAccess {
-  id         String            @id @default(uuid())
-  sessionId  String
-  session    BreakGlassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  taskId     String
-  accessedAt DateTime          @default(now())
-
-  @@index([sessionId])
-}
