@@ -102,6 +102,7 @@ export async function register(input: {
       name: input.name.trim(),
       passwordHash: await hashPassword(input.password),
       role: input.role,
+      emailVerifiedAt: null,
     },
   });
 
