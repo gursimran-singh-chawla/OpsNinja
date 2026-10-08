@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useState, type FormEvent } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
+import { TurnstileWidget } from "../TurnstileWidget";
 import { btnPrimary, field } from "../ui";
 
 const roles = [
@@ -11,19 +12,26 @@ const roles = [
 
 export function Signup() {
   const { signup } = useAuth();
+  const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<(typeof roles)[number]["value"]>("associate");
+  const [captchaToken, setCaptchaToken] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const onCaptcha = useCallback((token: string) => {
+    setCaptchaToken(token);
+  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      await signup({ name, email, password, role });
+      const result = await signup({ name, email, password, role, turnstileToken: captchaToken });
+      navigate(`/verify-email?email=${encodeURIComponent(result.email)}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create account");
     } finally {
@@ -33,12 +41,10 @@ export function Signup() {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center p-4 sm:p-6 overflow-hidden">
-      {/* Ambient background glow accents */}
       <div className="absolute -top-40 -right-40 h-96 w-96 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
       <div className="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-sky-500/10 blur-3xl pointer-events-none" />
 
       <div className="relative w-full max-w-md rounded-2xl border border-slate-200/80 bg-white/95 backdrop-blur-xl p-6 sm:p-8 shadow-xl shadow-slate-200/50 animate-fade-in">
-        {/* Header */}
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white font-bold shadow-md shadow-indigo-500/20 text-base">
             ON
@@ -53,7 +59,7 @@ export function Signup() {
           Create an operational account
         </h1>
         <p className="mt-1.5 text-xs sm:text-sm text-muted">
-          Lead, Manager, and Associate accounts can self-register. (Admin accounts are platform-provisioned).
+          Create your profile and verify your work email before entering OpsNinja.
         </p>
 
         <form onSubmit={(e) => void onSubmit(e)} className="mt-6 space-y-4">
@@ -122,6 +128,11 @@ export function Signup() {
                 </label>
               ))}
             </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Security check</div>
+            <TurnstileWidget onToken={onCaptcha} />
           </div>
 
           {error ? (
