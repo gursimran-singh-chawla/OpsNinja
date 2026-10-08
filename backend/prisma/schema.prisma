@@ -70,17 +70,22 @@ enum NotificationType {
 }
 
 model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  name          String
-  passwordHash  String
-  role          Role
-  reportsToId   String?
-  reportsTo     User?     @relation("ReportsTo", fields: [reportsToId], references: [id])
-  reports       User[]    @relation("ReportsTo")
-  deactivatedAt DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                         String    @id @default(uuid())
+  email                      String    @unique
+  name                       String
+  passwordHash               String
+  role                       Role
+  reportsToId                String?
+  reportsTo                 User?     @relation("ReportsTo", fields: [reportsToId], references: [id])
+  reports                   User[]    @relation("ReportsTo")
+  deactivatedAt              DateTime?
+  emailVerifiedAt            DateTime?
+  emailVerificationCodeHash  String?
+  emailVerificationExpiresAt DateTime?
+  emailVerificationAttempts  Int       @default(0)
+  emailVerificationSentAt    DateTime?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
 
   sessions                  Session[]
   createdTasks              Task[]                    @relation("TaskCreator")
@@ -116,7 +121,7 @@ model Task {
   id                  String         @id @default(uuid())
   title               String
   description         String
-  category            TaskCategory
+  category             TaskCategory
   workKind            WorkKind       @default(task)
   metadata            Json?
   priority            TaskPriority   @default(normal)
@@ -267,4 +272,3 @@ model FeatureFlag {
   enabled   Boolean  @default(true)
   updatedAt DateTime @updatedAt
 }
-
