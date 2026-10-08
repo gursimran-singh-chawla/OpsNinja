@@ -94,3 +94,28 @@ Runs Vitest test suites covering task policy, board ranking, route authorization
 - [PROJECT_SPEC.md](docs/PROJECT_SPEC.md) — Product requirements and lifecycle rules.
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) — System boundaries and component interactions.
 - [DECISIONS.md](docs/DECISIONS.md) — Architecture Decision Records (ADRs).
+
+
+## Email Verification & Bot Protection
+
+Self-service accounts must verify their work email with a 6-digit OTP before a session is created. Signup also uses Cloudflare Turnstile when a site key/secret is configured.
+
+### Configure locally
+
+Add these server variables to the root `.env`:
+
+```bash
+RESEND_API_KEY=""
+EMAIL_FROM="OpsNinja <onboarding@resend.dev>"
+TURNSTILE_SECRET_KEY=""
+```
+
+For the frontend, copy `frontend/.env.example` to `frontend/.env` and set:
+
+```bash
+VITE_TURNSTILE_SITE_KEY=""
+```
+
+Without those secrets, development mode logs the OTP to the backend console and skips Turnstile so the rest of the flow can be tested locally.
+
+For production, use a verified sending domain in Resend and a real Turnstile widget configured for the deployed hostname.
