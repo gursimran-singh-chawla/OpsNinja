@@ -7,6 +7,7 @@ export type AuthUser = {
   role: Role;
   reportsToId: string | null;
   deactivatedAt: Date | null;
+  emailVerifiedAt: Date | null;
 };
 
 declare global {
