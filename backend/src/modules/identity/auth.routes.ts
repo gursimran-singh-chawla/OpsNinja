@@ -4,6 +4,7 @@ import { env } from "../../config/env.js";
 import { asyncHandler } from "../../lib/asyncHandler.js";
 import { errors } from "../../lib/errors.js";
 import { requireAuth } from "../../middleware/requireAuth.js";
+import { verifyTurnstileToken } from "./turnstile.service.js";
 import * as auth from "./auth.service.js";
 
 export const authRouter = Router();
@@ -13,6 +14,7 @@ const creds = z.object({
   password: z.string().min(8).max(128),
   name: z.string().min(1).max(80).optional(),
   role: z.enum(["lead", "manager", "associate"]).optional(),
+  turnstileToken: z.string().max(4096).optional(),
 });
 
 function cookieOpts() {
@@ -31,16 +33,48 @@ authRouter.post(
     const body = creds.parse(req.body);
     if (!body.name) throw errors.badRequest("Name is required");
     if (!body.role) throw errors.badRequest("Role is required");
+
+    const turnstileOk = await verifyTurnstileToken(body.turnstileToken, req.ip);
+    if (!turnstileOk) throw errors.badRequest("Please complete the security check");
+
     const user = await auth.register({
       email: body.email,
       name: body.name,
       password: body.password,
       role: body.role,
     });
-    const ip = req.ip ?? "unknown";
-    const session = await auth.login(body.email, body.password, ip);
-    res.cookie(env.COOKIE_NAME, session.sessionId, cookieOpts());
-    res.status(201).json({ data: session.user });
+
+    res.status(201).json({
+      data: {
+        email: user.email,
+        verificationRequired: true,
+      },
+    });
+  }),
+);
+
+authRouter.post(
+  "/verify-email",
+  asyncHandler(async (req, res) => {
+    const body = z
+      .object({
+        email: z.string().email(),
+        code: z.string().min(1).max(20),
+      })
+      .parse(req.body);
+
+    const result = await auth.verifyEmail(body.email, body.code);
+    res.cookie(env.COOKIE_NAME, result.sessionId, cookieOpts());
+    res.json({ data: result.user });
+  }),
+);
+
+authRouter.post(
+  "/resend-verification",
+  asyncHandler(async (req, res) => {
+    const body = z.object({ email: z.string().email() }).parse(req.body);
+    await auth.resendVerification(body.email);
+    res.json({ data: { sent: true } });
   }),
 );
 
