@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../auth";
 import { btn, btnPrimary, field, formatVisibility, isOverdue, priorityBadgeClass } from "../ui";
+import { MarkdownRenderer } from "../components/MarkdownRenderer";
 
 type Person = { id: string; name: string; role: string; reportsToId: string | null };
 type Detail = {
@@ -37,6 +38,7 @@ export function TaskDetail() {
   const [aiMode, setAiMode] = useState<"summary" | "actions" | "catch-up" | null>(null);
   const [aiResult, setAiResult] = useState<string | null>(null);
   const [aiActions, setAiActions] = useState<string[] | null>(null);
+  const [aiMeta, setAiMeta] = useState<{ provider: string; model: string; fallback: boolean } | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiErr, setAiErr] = useState<string | null>(null);
   const [copiedAi, setCopiedAi] = useState(false);
@@ -84,17 +86,21 @@ export function TaskDetail() {
     setAiErr(null);
     setAiResult(null);
     setAiActions(null);
+    setAiMeta(null);
 
     try {
       if (mode === "summary") {
-        const res = await api<{ summary: string }>(`/api/tasks/${id}/ai/summary`, { method: "POST" });
+        const res = await api<{ summary: string; meta?: any }>(`/api/tasks/${id}/ai/summary`, { method: "POST" });
         setAiResult(res.summary);
+        if (res.meta) setAiMeta(res.meta);
       } else if (mode === "actions") {
-        const res = await api<{ actions: string[] }>(`/api/tasks/${id}/ai/actions`, { method: "POST" });
+        const res = await api<{ actions: string[]; meta?: any }>(`/api/tasks/${id}/ai/actions`, { method: "POST" });
         setAiActions(res.actions);
+        if (res.meta) setAiMeta(res.meta);
       } else if (mode === "catch-up") {
-        const res = await api<{ catchUp: string }>(`/api/tasks/${id}/ai/catch-up`, { method: "POST" });
+        const res = await api<{ catchUp: string; meta?: any }>(`/api/tasks/${id}/ai/catch-up`, { method: "POST" });
         setAiResult(res.catchUp);
+        if (res.meta) setAiMeta(res.meta);
       }
     } catch (e) {
       setAiErr(e instanceof Error ? e.message : "Failed to generate AI assist");
@@ -395,10 +401,36 @@ export function TaskDetail() {
         {(aiResult || aiActions) && !aiLoading && (
           <div className="mt-4 space-y-3">
             <div className="rounded-xl border border-indigo-100 bg-white/95 p-4 text-xs leading-relaxed text-slate-800 shadow-2xs">
+              <div className="mb-3 flex items-center justify-between border-b border-indigo-50/80 pb-2">
+                <span className="font-bold uppercase tracking-wider text-[11px] text-indigo-950">
+                  {aiMode === "actions" ? "Recommended Actions" : aiMode === "summary" ? "Task Summary" : "Catch-Up Digest"}
+                </span>
+                {aiMeta && (
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                      aiMeta.fallback
+                        ? "border border-amber-300 bg-amber-50 text-amber-800"
+                        : aiMeta.provider === "groq"
+                        ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : aiMeta.provider === "gemini"
+                        ? "border border-indigo-200 bg-indigo-50 text-indigo-700"
+                        : "border border-slate-200 bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    {aiMeta.fallback
+                      ? "⚠️ Offline Fallback"
+                      : aiMeta.provider === "groq"
+                      ? `⚡ Groq (${aiMeta.model})`
+                      : aiMeta.provider === "gemini"
+                      ? `✨ Gemini (${aiMeta.model})`
+                      : "🤖 Offline Engine"}
+                  </span>
+                )}
+              </div>
               {aiActions ? (
                 <div>
                   <div className="font-semibold text-indigo-950 mb-2 flex items-center gap-1.5">
-                    <span>⚡</span> Recommended Action Checklist:
+                    <span>⚡</span> Action Checklist:
                   </div>
                   <ul className="space-y-2">
                     {aiActions.map((act, i) => (
@@ -412,7 +444,7 @@ export function TaskDetail() {
                   </ul>
                 </div>
               ) : (
-                <div className="whitespace-pre-wrap font-sans leading-relaxed">{aiResult}</div>
+                <MarkdownRenderer content={aiResult} />
               )}
             </div>
 

@@ -19,7 +19,7 @@ io.use(async (socket, next) => {
     const sid = cookies[env.COOKIE_NAME];
     if (!sid) return next(new Error("unauthorized"));
     const session = await prisma.session.findUnique({ where: { id: sid }, include: { user: true } });
-    if (!session || session.expiresAt < new Date() || session.user.deactivatedAt) {
+    if (!session || session.expiresAt < new Date() || session.user.deactivatedAt || session.user.approvedAt == null) {
       return next(new Error("unauthorized"));
     }
     socket.data.user = {

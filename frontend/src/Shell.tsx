@@ -118,6 +118,47 @@ export function Shell({ children }: { children: ReactNode }) {
                 <span>Platform Admin</span>
               </NavLink>
             ) : null}
+            <NavLink to="/logs" className={side} onClick={() => setMobileMenuOpen(false)}>
+              <span className="text-sm">📜</span>
+              <span>Logs</span>
+            </NavLink>
+          </nav>
+
+          {/* Collaboration Group */}
+          <div className="px-2 pt-5 pb-2 text-[10px] font-bold uppercase tracking-wider text-muted/80">
+            Collaboration
+          </div>
+          <nav className="space-y-1">
+            {user?.role !== "admin" ? (
+              <NavLink to="/calendar" className={side} onClick={() => setMobileMenuOpen(false)}>
+                <span className="text-sm">📅</span>
+                <span>Calendar</span>
+              </NavLink>
+            ) : null}
+            <NavLink to="/meetings" className={side} onClick={() => setMobileMenuOpen(false)}>
+              <span className="text-sm">📹</span>
+              <span>Meetings</span>
+            </NavLink>
+          </nav>
+
+          {/* Utilities Group */}
+          <div className="px-2 pt-5 pb-2 text-[10px] font-bold uppercase tracking-wider text-muted/80">
+            Utilities
+          </div>
+          <nav className="space-y-1">
+            <a
+              href="https://mail.google.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between rounded-lg px-3 py-2 text-xs sm:text-sm text-muted hover:bg-slate-100/80 hover:text-ink transition-all group"
+              title="Open Gmail in a new tab"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="text-sm">✉️</span>
+                <span>Email</span>
+              </div>
+              <span className="text-xs text-slate-400 group-hover:text-slate-600 transition">↗</span>
+            </a>
           </nav>
         </aside>
 

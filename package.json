@@ -1,7 +1,10 @@
 {
   "name": "opsninja",
   "private": true,
-  "workspaces": ["backend", "frontend"],
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
   "scripts": {
     "dev": "npm run dev --workspace=backend & npm run dev --workspace=frontend",
     "dev:backend": "npm run dev --workspace=backend",

@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth";
+import { ApiError } from "../api";
 import { btnPrimary, field, roleBadgeClass } from "../ui";
 
 const demos = [
   { email: "sarah.okonkwo@harborlane.example", role: "Lead", desc: "Org-wide operations oversight" },
   { email: "marcus.hale@harborlane.example", role: "Manager", desc: "Team & routing manager" },
-  { email: "ravi.mehta@harborlane.example", role: "Associate", desc: "Frontline retail operations" },
+  { email: "ravi.mehta@harborlane.example", role: "Associate", desc: "Frontline operations" },
   { email: "amira.hassan@harborlane.example", role: "Free agent", desc: "Independent associate" },
   { email: "priya.nair@harborlane.example", role: "Admin", desc: "Platform security & users" },
 ];
@@ -16,16 +17,28 @@ export function Login() {
   const [email, setEmail] = useState("sarah.okonkwo@harborlane.example");
   const [password, setPassword] = useState("Harborlane!26");
   const [error, setError] = useState<string | null>(null);
+  const [notVerifiedEmail, setNotVerifiedEmail] = useState<string | null>(null);
+  const [pendingApproval, setPendingApproval] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    setNotVerifiedEmail(null);
+    setPendingApproval(false);
     try {
       await login(email, password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      if (err instanceof ApiError && err.code === "email_not_verified") {
+        setNotVerifiedEmail(email);
+        setError("Your email is not verified yet.");
+      } else if (err instanceof ApiError && err.code === "account_pending_approval") {
+        setPendingApproval(true);
+        setError(err.message || "Your account is waiting for administrator approval and will be available to log in in some time once approved.");
+      } else {
+        setError(err instanceof Error ? err.message : "Login failed");
+      }
     } finally {
       setBusy(false);
     }
@@ -85,16 +98,41 @@ export function Login() {
             />
           </div>
 
-          {error ? (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-xs text-due flex items-center gap-2">
-              <span>⚠️</span>
-              <span>{error}</span>
+          {pendingApproval && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-900 space-y-1.5 shadow-2xs">
+              <div className="flex items-center gap-2 font-semibold text-amber-950">
+                <span className="text-sm">⏳</span>
+                <span>Account Waiting Approval</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-amber-800">
+                Your account is waiting for administrator approval and will be available to log in in some time once approved.
+              </p>
             </div>
-          ) : null}
+          )}
+
+          {!pendingApproval && error && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-due space-y-2">
+              <div className="flex items-center gap-2">
+                <span>⚠️</span>
+                <span className="font-medium">{error}</span>
+              </div>
+              {notVerifiedEmail && (
+                <div className="pt-2 border-t border-rose-200/60 flex items-center justify-between">
+                  <span className="text-[11px] text-rose-800">Please verify your email before signing in.</span>
+                  <Link
+                    to={`/verify-email?email=${encodeURIComponent(notVerifiedEmail)}`}
+                    className="inline-flex items-center gap-1 font-semibold text-brand hover:underline bg-white px-2.5 py-1 rounded-lg border border-rose-200 text-xs shadow-2xs"
+                  >
+                    Verify email →
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
 
           <button disabled={busy} className={`${btnPrimary} w-full py-2.5 font-semibold text-sm`}>
             {busy ? (
-              <span className="flex items-center gap-2">
+              <span className="flex items-center justify-center gap-2">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                 Signing in…
               </span>
@@ -111,33 +149,35 @@ export function Login() {
           </Link>
         </p>
 
-        {/* Quick Demo Accounts Switcher */}
-        <div className="mt-7 pt-5 border-t border-border-subtle">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
-              Demo Quick-Fill
-            </span>
-            <span className="text-[10px] text-muted">Click any role to load</span>
+        {/* Quick Demo Switcher */}
+        <div className="mt-8 border-t border-border/80 pt-5">
+          <div className="flex items-center justify-between text-xs text-muted mb-3">
+            <span className="font-semibold uppercase tracking-wider text-[10px]">Quick Demo Switcher</span>
+            <span className="text-[10px]">Click any persona</span>
           </div>
-          <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+
+          <div className="space-y-1.5">
             {demos.map((d) => (
               <button
-                key={d.email}
+                key={d.role}
                 type="button"
-                className={`flex flex-col text-left p-2 rounded-lg border transition-all text-xs cursor-pointer ${
+                onClick={() => {
+                  setEmail(d.email);
+                  setPassword("Harborlane!26");
+                }}
+                className={`w-full flex items-center justify-between p-2 rounded-xl border text-left text-xs transition-all ${
                   email === d.email
-                    ? "bg-indigo-50/80 border-indigo-300 shadow-2xs"
-                    : "bg-slate-50/80 border-slate-200/70 hover:bg-slate-100 hover:border-slate-300"
+                    ? "border-brand bg-brand-subtle/40 shadow-2xs"
+                    : "border-slate-200/70 hover:bg-slate-50/80"
                 }`}
-                onClick={() => setEmail(d.email)}
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-ink">{d.role}</span>
-                  <span className={`text-[9px] px-1.5 py-0.2 rounded border ${roleBadgeClass(d.role)}`}>
-                    Select
+                <div className="flex items-center gap-2">
+                  <span className={roleBadgeClass(d.role.toLowerCase())}>{d.role}</span>
+                  <span className="font-medium text-ink truncate max-w-[150px] sm:max-w-[180px]">
+                    {d.email.split("@")[0].replace(".", " ")}
                   </span>
                 </div>
-                <span className="text-[10px] text-muted truncate mt-0.5">{d.desc}</span>
+                <span className="text-[10px] text-muted hidden sm:inline">{d.desc}</span>
               </button>
             ))}
           </div>

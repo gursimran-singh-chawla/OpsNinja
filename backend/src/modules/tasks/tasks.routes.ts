@@ -1,10 +1,20 @@
 import { Router } from "express";
 import { z } from "zod";
+import rateLimit from "express-rate-limit";
 import { asyncHandler } from "../../lib/asyncHandler.js";
 import { requireAuth } from "../../middleware/requireAuth.js";
 import { errors } from "../../lib/errors.js";
+import { env } from "../../config/env.js";
 import * as tasks from "./tasks.service.js";
 import * as aiService from "../ai/ai.service.js";
+
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: "RATE_LIMITED", message: "Too many AI requests. Please slow down." } },
+});
 
 export const tasksRouter = Router();
 tasksRouter.use(requireAuth);
@@ -166,35 +176,77 @@ tasksRouter.post(
 );
 
 // SimuAI endpoints
-tasksRouter.post(
-  "/ai/briefing",
+tasksRouter.get(
+  "/ai/status",
   asyncHandler(async (req, res) => {
     if (req.user?.role === "admin") throw errors.forbidden();
-    res.json({ data: { briefing: await aiService.generateBriefing(req.user!) } });
+    const meta = aiService.getAiMeta();
+    const hasApiKey = Boolean(
+      (env.GROQ_API_KEY && env.GROQ_API_KEY.trim().length > 0) ||
+      (env.AI_API_KEY && env.AI_API_KEY.trim().length > 0)
+    );
+    res.json({
+      data: {
+        configuredProvider: env.AI_PROVIDER,
+        configuredModel: env.AI_MODEL,
+        hasApiKey,
+        activeProvider: meta.provider,
+        activeModel: meta.model,
+        fallback: meta.fallback,
+        statusText:
+          meta.provider === "groq" && !meta.fallback
+            ? `Live Groq (${meta.model}) active`
+            : meta.provider === "gemini" && !meta.fallback
+            ? `Live Gemini (${meta.model}) active`
+            : meta.fallback
+            ? `Operating in offline fallback mode`
+            : `Offline engine active`,
+      },
+    });
+  }),
+);
+
+tasksRouter.post(
+  "/ai/briefing",
+  aiLimiter,
+  asyncHandler(async (req, res) => {
+    if (req.user?.role === "admin") throw errors.forbidden();
+    const briefing = await aiService.generateBriefing(req.user!);
+    const meta = aiService.getAiMeta();
+    res.json({ data: { briefing, meta } });
   }),
 );
 
 tasksRouter.post(
   "/:id/ai/summary",
+  aiLimiter,
   asyncHandler(async (req, res) => {
     if (req.user?.role === "admin") throw errors.forbidden();
-    res.json({ data: { summary: await aiService.summarizeTask(req.user!, req.params.id) } });
+    const summary = await aiService.summarizeTask(req.user!, req.params.id);
+    const meta = aiService.getAiMeta();
+    res.json({ data: { summary, meta } });
   }),
 );
 
 tasksRouter.post(
   "/:id/ai/actions",
+  aiLimiter,
   asyncHandler(async (req, res) => {
     if (req.user?.role === "admin") throw errors.forbidden();
-    res.json({ data: { actions: await aiService.suggestNextActions(req.user!, req.params.id) } });
+    const actions = await aiService.suggestNextActions(req.user!, req.params.id);
+    const meta = aiService.getAiMeta();
+    res.json({ data: { actions, meta } });
   }),
 );
 
 tasksRouter.post(
   "/:id/ai/catch-up",
+  aiLimiter,
   asyncHandler(async (req, res) => {
     if (req.user?.role === "admin") throw errors.forbidden();
-    res.json({ data: { catchUp: await aiService.catchUpTask(req.user!, req.params.id) } });
+    const catchUp = await aiService.catchUpTask(req.user!, req.params.id);
+    const meta = aiService.getAiMeta();
+    res.json({ data: { catchUp, meta } });
   }),
 );
 

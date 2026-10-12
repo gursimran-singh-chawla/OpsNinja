@@ -11,6 +11,11 @@ import { Chat } from "./pages/Chat";
 import { People } from "./pages/People";
 import { Notifications } from "./pages/Notifications";
 import { Admin } from "./pages/Admin";
+import { Logs } from "./pages/Logs";
+import { Calendar } from "./pages/Calendar";
+import { Meetings } from "./pages/Meetings";
+
+import { VerifyEmail } from "./pages/VerifyEmail";
 
 export function App() {
   const { user, loading } = useAuth();
@@ -22,6 +27,7 @@ export function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
@@ -48,6 +54,10 @@ export function App() {
             <Route path="/admin" element={<Admin />} />
           </>
         )}
+        <Route path="/logs" element={<Logs />} />
+        <Route path="/calendar" element={<Calendar />} />
+        <Route path="/meetings" element={<Meetings />} />
+        <Route path="/verify-email" element={<Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Shell>

@@ -4,8 +4,9 @@ import { env } from "../../config/env.js";
 import type { AuthUser } from "../../types/express.js";
 import { canViewTask, isOverdue, type TaskWithAccess } from "../tasks/policy.js";
 import * as tasksService from "../tasks/tasks.service.js";
-import type { AiProvider, TaskAiContext, DashboardAiContext } from "./types.js";
+import type { AiMeta, AiProvider, TaskAiContext, DashboardAiContext } from "./types.js";
 import { MockAiProvider } from "./mockProvider.js";
+import { GroqAiProvider } from "./groqProvider.js";
 import { GeminiAiProvider } from "./geminiProvider.js";
 
 let providerInstance: AiProvider | null = null;
@@ -13,16 +14,40 @@ let providerInstance: AiProvider | null = null;
 export function getAiProvider(): AiProvider {
   if (providerInstance) return providerInstance;
 
-  const providerType = (env.AI_PROVIDER || "mock").toLowerCase();
-  const apiKey = env.AI_API_KEY || "";
+  const providerType = (env.AI_PROVIDER || "none").toLowerCase().trim();
+  const groqKey = (env.GROQ_API_KEY || env.AI_API_KEY || "").trim();
+  const geminiKey = (env.AI_API_KEY || "").trim();
+  const model = (env.AI_MODEL || "openai/gpt-oss-20b").trim();
 
-  if (providerType === "gemini" && apiKey.trim().length > 0) {
-    providerInstance = new GeminiAiProvider(apiKey);
+  if (providerType === "groq") {
+    if (groqKey.length > 0) {
+      providerInstance = new GroqAiProvider(groqKey, model);
+    } else {
+      throw errors.badRequest("AI_PROVIDER is set to 'groq' but GROQ_API_KEY is missing or empty.");
+    }
+  } else if (providerType === "gemini") {
+    if (geminiKey.length > 0) {
+      providerInstance = new GeminiAiProvider(geminiKey, model);
+    } else {
+      throw errors.badRequest("AI_PROVIDER is set to 'gemini' but AI_API_KEY is missing or empty.");
+    }
   } else {
     providerInstance = new MockAiProvider();
   }
 
   return providerInstance;
+}
+
+export function getAiMeta(): AiMeta {
+  const provider = getAiProvider();
+  if (provider.getMeta) {
+    return provider.getMeta();
+  }
+  return {
+    provider: "mock",
+    model: "offline-engine",
+    fallback: false,
+  };
 }
 
 export function setAiProviderForTesting(provider: AiProvider | null) {
@@ -111,10 +136,27 @@ export async function generateBriefing(user: AuthUser): Promise<string> {
 
   const urgentCount = recentTasks.filter((t: any) => t.priority === "urgent" && !t.finishedAt).length;
 
-  const highlightTasks = recentTasks.slice(0, 5).map((t: any) => ({
+  // Prioritize highlight tasks by urgency (overdue first, then priority weight, then updated date)
+  const prioritizedTasks = [...recentTasks].sort((a: any, b: any) => {
+    const aOverdue = isOverdue(a) ? 1 : 0;
+    const bOverdue = isOverdue(b) ? 1 : 0;
+    if (bOverdue !== aOverdue) return bOverdue - aOverdue;
+
+    const prioWeight: Record<string, number> = { urgent: 3, high: 2, normal: 1, low: 0 };
+    const aPrio = prioWeight[a.priority] ?? 0;
+    const bPrio = prioWeight[b.priority] ?? 0;
+    if (bPrio !== aPrio) return bPrio - aPrio;
+
+    const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+    const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+    return bTime - aTime;
+  });
+
+  const highlightTasks = prioritizedTasks.slice(0, 5).map((t: any) => ({
     title: t.title,
     priority: t.priority,
     category: t.category,
+    workKind: t.workKind,
     overdue: isOverdue(t),
     assigneeName: t.assignee?.name ?? null,
   }));

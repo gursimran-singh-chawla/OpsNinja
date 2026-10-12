@@ -12,8 +12,14 @@ usersRouter.use(requireAuth);
 
 usersRouter.get(
   "/",
-  asyncHandler(async (_req, res) => {
-    res.json({ data: await auth.listUsers() });
+  asyncHandler(async (req, res) => {
+    const q =
+      typeof req.query.q === "string"
+        ? req.query.q
+        : typeof req.query.search === "string"
+        ? req.query.search
+        : undefined;
+    res.json({ data: await auth.listUsers(q) });
   }),
 );
 
@@ -41,6 +47,7 @@ const patchUser = z.object({
   role: z.enum(["admin", "lead", "manager", "associate"]).optional(),
   reportsToId: z.string().uuid().nullable().optional(),
   deactivated: z.boolean().optional(),
+  approved: z.boolean().optional(),
 });
 
 usersRouter.patch(
@@ -63,15 +70,32 @@ usersRouter.patch(
         role: body.role,
         reportsToId: body.reportsToId === undefined ? undefined : body.reportsToId,
         deactivatedAt: body.deactivated === undefined ? undefined : body.deactivated ? new Date() : null,
+        approvedAt: body.approved === undefined ? undefined : body.approved ? new Date() : null,
       },
-      select: { id: true, email: true, name: true, role: true, reportsToId: true, deactivatedAt: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        reportsToId: true,
+        deactivatedAt: true,
+        approvedAt: true,
+        emailVerifiedAt: true,
+      },
     });
     await writeAudit({
       actorId: req.user!.id,
-      action: body.deactivated ? "user.deactivated" : "user.updated",
+      action:
+        body.approved !== undefined
+          ? body.approved
+            ? "user.approved"
+            : "user.approval_revoked"
+          : body.deactivated
+          ? "user.deactivated"
+          : "user.updated",
       entityType: "user",
       entityId: id,
-      metadata: { role: body.role, reportsToId: body.reportsToId },
+      metadata: { role: body.role, reportsToId: body.reportsToId, approved: body.approved },
     });
     res.json({ data: user });
   }),

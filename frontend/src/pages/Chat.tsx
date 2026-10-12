@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { io, type Socket } from "socket.io-client";
-import { api } from "../api";
+import { api, getApiBaseUrl } from "../api";
 import { useAuth } from "../auth";
 
 type Msg = { id: string; body: string; createdAt: string; sender: { id: string; name: string } };
@@ -32,7 +32,8 @@ export function Chat() {
   useEffect(() => {
     if (!active) return;
     api<Msg[]>(`/api/chat/conversations/${active}/messages`).then(setMessages);
-    const s = io({ withCredentials: true });
+    const socketBase = getApiBaseUrl();
+    const s = socketBase ? io(socketBase, { withCredentials: true }) : io({ withCredentials: true });
     sock.current = s;
     s.on("connect", () => setStatus("live"));
     s.on("disconnect", () => setStatus("reconnecting"));

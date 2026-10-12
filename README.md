@@ -1,6 +1,6 @@
 # OpsNinja
 
-Internal operations platform for Harborlane Retail — one place to talk about operational problems, turn them into accountable tasks, control who can see them, assign ownership, and keep history.
+Internal operations platform for IG Incorporation — one place to talk about operational problems, turn them into accountable tasks, control who can see them, assign ownership, and keep history.
 
 **Canonical name:** OpsNinja. Domain object: **task**.
 
@@ -31,7 +31,14 @@ OpsNinja keeps **who created it**, **who can see it**, and **who owns the work**
 - **Frontend:** React, TypeScript, Vite, Tailwind CSS
 - **Backend:** Node.js, Express, TypeScript, Socket.IO
 - **Database:** PostgreSQL, Prisma ORM
-- **Security:** Argon2id (`hash-wasm`), HTTP-only session cookies, backend authorization
+- **Security:** Argon2id (`hash-wasm`), HTTP-only session cookies, backend authorization, SHA-256 hashed 6-digit email OTPs, Cloudflare Turnstile bot protection
+
+## Authentication & Email Verification
+
+- **Self-Service Registration:** Protected by Cloudflare Turnstile captcha. Newly registered accounts start unverified (`emailVerifiedAt = null`) and do **not** receive a session.
+- **6-Digit OTP:** Cryptographically generated via `crypto.randomInt`, delivered via EmailJS REST API (`POST https://api.emailjs.com/api/v1.0/email/send`), valid for 10 minutes. Only SHA-256 hashes are stored in PostgreSQL.
+- **Brute-Force & Flood Safeguards:** Max 5 incorrect attempts before OTP invalidation; 60-second resend cooldown timer; rate-limited endpoints.
+- **Internal / Seeded Users:** Demo and Admin-provisioned accounts are verified immediately upon creation.
 
 ## Local Setup
 
@@ -43,6 +50,7 @@ OpsNinja keeps **who created it**, **who can see it**, and **who owns the work**
 ```bash
 cp .env.example .env
 cp .env.example backend/.env
+cp frontend/.env.example frontend/.env
 ```
 
 ### 3. Install & Initialize
@@ -87,7 +95,7 @@ OpsNinja includes **SimuAI**, an internal AI operational copilot:
 ```bash
 npm test
 ```
-Runs Vitest test suites covering task policy, board ranking, route authorization, chat privacy boundaries, and SimuAI engine/fallback.
+Runs Vitest test suites covering task policy, board ranking, route authorization, chat privacy boundaries, SimuAI engine/fallback, and registration/OTP email verification security.
 
 ## Architecture & Decisions
 

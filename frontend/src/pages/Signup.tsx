@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
 import { btnPrimary, field } from "../ui";
+import { TurnstileWidget } from "../TurnstileWidget";
 
 const roles = [
   { value: "associate", label: "Associate", desc: "Frontline operations, execute and self-assign tasks" },
@@ -11,19 +12,30 @@ const roles = [
 
 export function Signup() {
   const { signup } = useAuth();
+  const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<(typeof roles)[number]["value"]>("associate");
+  const [turnstileToken, setTurnstileToken] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const hasTurnstileKey = Boolean(import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim());
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (hasTurnstileKey && !turnstileToken) {
+      setError("Please complete the security verification challenge");
+      return;
+    }
+
     setBusy(true);
     setError(null);
     try {
-      await signup({ name, email, password, role });
+      const res = await signup({ name, email, password, role, turnstileToken });
+      // Self-registration requires email verification via 6-digit OTP
+      navigate(`/verify-email?email=${encodeURIComponent(res.email)}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create account");
     } finally {
@@ -53,7 +65,7 @@ export function Signup() {
           Create an operational account
         </h1>
         <p className="mt-1.5 text-xs sm:text-sm text-muted">
-          Lead, Manager, and Associate accounts can self-register. (Admin accounts are platform-provisioned).
+          Lead, Manager, and Associate accounts can self-register. A 6-digit verification code will be sent to your work email.
         </p>
 
         <form onSubmit={(e) => void onSubmit(e)} className="mt-6 space-y-4">
@@ -124,6 +136,15 @@ export function Signup() {
             </div>
           </div>
 
+          {/* Cloudflare Turnstile bot verification */}
+          <div className="pt-1">
+            <TurnstileWidget
+              onSuccess={(token) => setTurnstileToken(token)}
+              onExpire={() => setTurnstileToken("")}
+              onError={() => setTurnstileToken("")}
+            />
+          </div>
+
           {error ? (
             <div className="rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-xs text-due flex items-center gap-2">
               <span>⚠️</span>
@@ -131,8 +152,12 @@ export function Signup() {
             </div>
           ) : null}
 
-          <button disabled={busy} className={`${btnPrimary} w-full py-2.5 font-semibold text-sm`}>
-            {busy ? "Creating account…" : "Create account"}
+          <button
+            type="submit"
+            disabled={busy || (hasTurnstileKey && !turnstileToken)}
+            className={`${btnPrimary} w-full py-2.5 font-semibold text-sm disabled:opacity-50`}
+          >
+            {busy ? "Sending verification code…" : "Create account"}
           </button>
         </form>
 

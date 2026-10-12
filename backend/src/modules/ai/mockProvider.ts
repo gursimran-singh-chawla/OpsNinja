@@ -1,7 +1,16 @@
-import type { AiProvider, DashboardAiContext, TaskAiContext } from "./types.js";
+import type { AiMeta, AiProvider, DashboardAiContext, TaskAiContext } from "./types.js";
 
 export class MockAiProvider implements AiProvider {
   name = "SimuAI (Offline Engine)";
+  model = "offline-engine";
+
+  getMeta(): AiMeta {
+    return {
+      provider: "mock",
+      model: this.model,
+      fallback: false,
+    };
+  }
 
   async summarizeTask(ctx: TaskAiContext): Promise<string> {
     const parts: string[] = [];
@@ -93,44 +102,86 @@ export class MockAiProvider implements AiProvider {
   async generateBriefing(ctx: DashboardAiContext): Promise<string> {
     const lines: string[] = [];
 
-    lines.push(`### 🌅 SimuAI Operational Briefing for **${ctx.userName}** (${ctx.userRole.toUpperCase()})`);
+    const roleUpper = ctx.userRole.toUpperCase();
+    lines.push(`### Operational Briefing: SimuAI Operational Briefing for **${ctx.userName}** (${roleUpper})`);
 
-    // Workload summary
+    // 1. Overview
+    if (ctx.overdueCount > 0) {
+      lines.push(
+        `**Overview:** Queue requires immediate operational intervention with **${ctx.overdueCount} overdue task${ctx.overdueCount > 1 ? "s" : ""}** and **${ctx.openCount} open task${ctx.openCount !== 1 ? "s" : ""}** under active management.`,
+      );
+    } else {
+      lines.push(
+        `**Overview:** Operational queue is healthy with **${ctx.openCount} open task${ctx.openCount !== 1 ? "s" : ""}** (**${ctx.activeCount} active on schedule**) and zero overdue deadlines.`,
+      );
+    }
+
+    // 2. Key Operational Metrics (GFM Table)
     lines.push(
-      `You currently have oversight of **${ctx.openCount} open task${ctx.openCount !== 1 ? "s" : ""}** ` +
-        `(**${ctx.activeCount} active**).`,
+      `#### Key Operational Metrics\n\n` +
+        `| Metric | Count | Operational Status |\n` +
+        `| :--- | :--- | :--- |\n` +
+        `| Total Open Tasks | ${ctx.openCount} | ${ctx.openCount > 15 ? "Elevated" : "Nominal"} |\n` +
+        `| Active (On Schedule) | ${ctx.activeCount} | Nominal |\n` +
+        `| Overdue | ${ctx.overdueCount} | ${ctx.overdueCount > 0 ? "Immediate Action Needed" : "Nominal"} |\n` +
+        `| Urgent Priority | ${ctx.urgentCount} | ${ctx.urgentCount > 0 ? "Critical Focus" : "Nominal"} |\n` +
+        `| Unassigned Queue | ${ctx.unassignedCount} | ${ctx.unassignedCount > 0 ? "Pending Owner" : "Clear"} |`,
     );
 
-    // Urgent / Overdue alerts
-    if (ctx.overdueCount > 0 || ctx.urgentCount > 0) {
-      const alerts: string[] = [];
-      if (ctx.overdueCount > 0) alerts.push(`🚨 **${ctx.overdueCount} overdue task${ctx.overdueCount > 1 ? "s" : ""}** requiring immediate intervention`);
-      if (ctx.urgentCount > 0) alerts.push(`⚡ **${ctx.urgentCount} urgent task${ctx.urgentCount > 1 ? "s" : ""}**`);
-      lines.push(`> [!WARNING]\n> **Critical Items:** ${alerts.join(" and ")}.`);
+    // 3. Priority Items (GFM Table)
+    lines.push(`#### Priority Items`);
+    if (ctx.highlightTasks.length > 0) {
+      const rows = ctx.highlightTasks
+        .map((t) => {
+          const status = t.overdue ? "⚠️ Overdue" : "In Progress";
+          const assignee = t.assigneeName ?? "Unassigned";
+          return `| ${t.title} | ${t.priority.toUpperCase()} | ${t.category} | ${status} | ${assignee} |`;
+        })
+        .join("\n");
+      lines.push(
+        `| Task | Priority | Category | Status | Assignee |\n` +
+          `| :--- | :--- | :--- | :--- | :--- |\n` +
+          rows,
+      );
     } else {
-      lines.push(`✅ **Clean Queue:** No overdue or urgent items pending in your active view.`);
+      lines.push(`*No pending critical priority items.*`);
     }
 
-    // Unassigned note
+    // 4. Recommended Actions
+    lines.push(`#### Recommended Actions`);
+    const actions: string[] = [];
+    if (ctx.overdueCount > 0) {
+      actions.push(
+        `1. **Triage Overdue Tickets:** Immediately address the **${ctx.overdueCount} overdue tasks** to avoid SLA breach.`,
+      );
+    }
+    if (ctx.urgentCount > 0) {
+      actions.push(
+        `2. **Escalate Urgent Blockers:** Expedite operational resolution on urgent tickets.`,
+      );
+    }
     if (ctx.unassignedCount > 0) {
       if (ctx.userRole === "lead" || ctx.userRole === "manager") {
-        lines.push(`📌 **Routing Focus:** There are **${ctx.unassignedCount} unassigned tasks** ready for team assignment.`);
+        actions.push(
+          `3. **Assign Pending Queue:** Allocate the **${ctx.unassignedCount} unassigned tasks** to appropriate floor Associates.`,
+        );
       } else {
-        lines.push(`📌 **Opportunity:** **${ctx.unassignedCount} visible tasks** are unassigned. You may self-assign any task you can assist with.`);
+        actions.push(
+          `3. **Self-Assign Capacity:** Review the **${ctx.unassignedCount} unassigned tasks** and claim visible items if capacity permits.`,
+        );
       }
     }
-
-    // Role-specific operational guidance
-    if (ctx.userRole === "lead") {
-      lines.push(`**Strategic Focus:** Monitor department-wide bottlenecks, review escalations, and confirm managers are clearing aged inventory and vendor tickets.`);
-    } else if (ctx.userRole === "manager") {
-      lines.push(`**Team Management:** Check your direct reports' queues, allocate unassigned tickets to available Associates or free agents, and ensure high-priority customer items are resolved.`);
-    } else if (ctx.userRole === "associate") {
-      lines.push(`**Daily Focus:** Complete your assigned items first. If you have bandwidth, claim visible unassigned tasks to maintain store operations velocity.`);
+    if (actions.length === 0) {
+      actions.push(`1. **Maintain Workflow:** Continue progressing open tasks on schedule.`);
+      actions.push(`2. **Queue Hygiene:** Confirm task completions are finished and archived promptly.`);
     }
+    lines.push(actions.join("\n"));
 
-    if (ctx.highlightTasks.length > 0) {
-      lines.push(`\n**Top Priority Tasks:**\n` + ctx.highlightTasks.map((t) => `• [${t.priority.toUpperCase()}] **${t.title}** (${t.category}${t.overdue ? " - OVERDUE" : ""})`).join("\n"));
+    // 5. Workload Observations
+    if (ctx.unassignedCount > 0 || ctx.overdueCount > 0) {
+      lines.push(
+        `#### Workload Observations\nAttention required on queue bottlenecks: ${ctx.overdueCount} overdue item${ctx.overdueCount !== 1 ? "s" : ""} and ${ctx.unassignedCount} unassigned ticket${ctx.unassignedCount !== 1 ? "s" : ""} require routing attention.`,
+      );
     }
 
     return lines.join("\n\n");

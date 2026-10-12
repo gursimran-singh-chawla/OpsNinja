@@ -66,6 +66,8 @@ const adminUser = {
   role: "admin",
   reportsToId: null,
   deactivatedAt: null,
+  emailVerifiedAt: future,
+  approvedAt: future,
 };
 
 const leadUser = {
@@ -75,6 +77,8 @@ const leadUser = {
   role: "lead",
   reportsToId: null,
   deactivatedAt: null,
+  emailVerifiedAt: future,
+  approvedAt: future,
 };
 
 const managerUser = {
@@ -84,6 +88,8 @@ const managerUser = {
   role: "manager",
   reportsToId: "b0000000-0000-0000-0000-000000000002",
   deactivatedAt: null,
+  emailVerifiedAt: future,
+  approvedAt: future,
 };
 
 const associateUser = {
@@ -93,6 +99,8 @@ const associateUser = {
   role: "associate",
   reportsToId: "c0000000-0000-0000-0000-000000000003",
   deactivatedAt: null,
+  emailVerifiedAt: future,
+  approvedAt: future,
 };
 
 beforeAll(async () => {
@@ -269,6 +277,39 @@ describe("Route Authorization & Security Boundaries", () => {
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.error.code).toBe("validation");
+    });
+
+    it("permits Admin to list and search users by name or email on GET /api/users?q=...", async () => {
+      vi.mocked(prisma.user.findMany).mockResolvedValue([
+        {
+          id: "u-1",
+          email: "alex.morgan@example.com",
+          name: "Alex Morgan",
+          role: "associate",
+          reportsToId: null,
+          deactivatedAt: null,
+          emailVerifiedAt: new Date(),
+        } as never,
+      ]);
+
+      const res = await fetch(`${baseUrl}/api/users?q=alex`, {
+        headers: cookieHeader("admin-session"),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].email).toBe("alex.morgan@example.com");
+
+      expect(prisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            OR: [
+              { name: { contains: "alex", mode: "insensitive" } },
+              { email: { contains: "alex", mode: "insensitive" } },
+            ],
+          },
+        }),
+      );
     });
   });
 

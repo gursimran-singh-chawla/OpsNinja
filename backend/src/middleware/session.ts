@@ -14,7 +14,7 @@ export const attachSession: RequestHandler = async (req, _res, next) => {
       if (session) await prisma.session.delete({ where: { id: sid } }).catch(() => undefined);
       return next();
     }
-    if (session.user.deactivatedAt) return next();
+    if (session.user.deactivatedAt || session.user.approvedAt == null) return next();
     req.sessionId = session.id;
     req.user = {
       id: session.user.id,
@@ -23,6 +23,8 @@ export const attachSession: RequestHandler = async (req, _res, next) => {
       role: session.user.role,
       reportsToId: session.user.reportsToId,
       deactivatedAt: session.user.deactivatedAt,
+      emailVerifiedAt: session.user.emailVerifiedAt,
+      approvedAt: session.user.approvedAt,
     };
     next();
   } catch (e) {

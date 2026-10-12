@@ -30,6 +30,18 @@ export function createApp() {
     "/api/auth/login",
     rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false }),
   );
+  app.use(
+    "/api/auth/register",
+    rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false }),
+  );
+  app.use(
+    "/api/auth/verify-email",
+    rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false }),
+  );
+  app.use(
+    "/api/auth/resend-verification",
+    rateLimit({ windowMs: 15 * 60 * 1000, max: 15, standardHeaders: true, legacyHeaders: false }),
+  );
 
   app.get("/api/health", (_req, res) => {
     res.json({ data: { ok: true, service: "opsninja" } });

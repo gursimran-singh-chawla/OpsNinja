@@ -32,13 +32,23 @@ export interface DashboardAiContext {
     title: string;
     priority: string;
     category: string;
+    workKind?: string;
     overdue: boolean;
     assigneeName?: string | null;
   }>;
 }
 
+export interface AiMeta {
+  provider: "groq" | "gemini" | "mock";
+  model: string;
+  fallback: boolean;
+  error?: string;
+}
+
 export interface AiProvider {
   name: string;
+  model?: string;
+  getMeta?(): AiMeta;
   summarizeTask(ctx: TaskAiContext): Promise<string>;
   suggestNextActions(ctx: TaskAiContext): Promise<string[]>;
   catchUpTask(ctx: TaskAiContext): Promise<string>;

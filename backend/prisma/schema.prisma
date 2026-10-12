@@ -78,9 +78,15 @@ model User {
   reportsToId   String?
   reportsTo     User?     @relation("ReportsTo", fields: [reportsToId], references: [id])
   reports       User[]    @relation("ReportsTo")
-  deactivatedAt DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  deactivatedAt              DateTime?
+  emailVerifiedAt            DateTime?
+  approvedAt                 DateTime?
+  emailVerificationCodeHash  String?
+  emailVerificationExpiresAt DateTime?
+  emailVerificationAttempts  Int       @default(0)
+  emailVerificationSentAt    DateTime?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
 
   sessions                  Session[]
   createdTasks              Task[]                    @relation("TaskCreator")

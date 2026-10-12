@@ -23,9 +23,22 @@ export function People() {
       .finally(() => setLoading(false));
   }, []);
 
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+
   const managers = rows.filter((r) => r.role === "manager");
   const associates = rows.filter((r) => r.role === "associate");
   const freeAgents = associates.filter((r) => !r.reportsToId);
+
+  const filteredRows = rows.filter((p) => {
+    const q = search.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      p.name.toLowerCase().includes(q) ||
+      p.email.toLowerCase().includes(q);
+    const matchesRole = roleFilter === "all" || p.role === roleFilter;
+    return matchesSearch && matchesRole;
+  });
 
   return (
     <div className="space-y-6">
@@ -69,8 +82,70 @@ export function People() {
         </div>
       )}
 
-      {/* Directory Table */}
+      {/* Directory Table with Search */}
       <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white/90 shadow-xs backdrop-blur-xs">
+        {/* Search & Filter Toolbar */}
+        <div className="border-b border-slate-100 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search team members by name or email ID..."
+                className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-9 text-xs text-slate-800 placeholder-slate-400 shadow-2xs transition focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600"
+                  title="Clear search"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700 shadow-2xs transition focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="all">All Roles</option>
+                <option value="lead">Leads</option>
+                <option value="manager">Managers</option>
+                <option value="associate">Associates</option>
+              </select>
+
+              {(search || roleFilter !== "all") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    setRoleFilter("all");
+                  }}
+                  className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-500 shadow-2xs transition hover:bg-slate-50 hover:text-slate-800"
+                >
+                  Reset
+                </button>
+              )}
+
+              <span className="text-xs text-slate-400">
+                {search || roleFilter !== "all" ? `${filteredRows.length} found` : `${rows.length} total`}
+              </span>
+            </div>
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full min-w-[700px] text-left text-xs">
             <thead>
@@ -86,12 +161,32 @@ export function People() {
                 <tr>
                   <td colSpan={4} className="py-8 text-center text-slate-400">Loading directory...</td>
                 </tr>
-              ) : rows.length === 0 ? (
+              ) : filteredRows.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="py-8 text-center text-slate-400">No members found.</td>
+                  <td colSpan={4} className="py-12 text-center">
+                    <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                      🔍
+                    </div>
+                    <div className="text-xs font-semibold text-slate-800">No members match your search</div>
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Try searching with a different name, email, or role.
+                    </p>
+                    {(search || roleFilter !== "all") && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearch("");
+                          setRoleFilter("all");
+                        }}
+                        className="mt-3 inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50"
+                      >
+                        Reset search filters
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ) : (
-                rows.map((p) => {
+                filteredRows.map((p) => {
                   const manager = managers.find((m) => m.id === p.reportsToId);
                   const isFreeAgent = p.role === "associate" && !p.reportsToId;
 
