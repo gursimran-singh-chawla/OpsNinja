@@ -14,6 +14,8 @@ type TaskRow = {
   visibilityType: string;
   visibilityManager: { name: string } | null;
   finishedAt: string | null;
+  completedAt: string | null;
+  archiveAfter: string | null;
   archivedAt: string | null;
   createdBy: { name: string };
   assignee: { id: string; name: string } | null;
@@ -40,6 +42,7 @@ export function List() {
     if (params.get("overdue") === "true") sp.set("overdue", "true");
     if (params.get("unassigned") === "true") sp.set("unassigned", "true");
     if (params.get("finished") === "true") sp.set("finished", "true");
+    if (params.get("archived") === "true") sp.set("archived", "true");
     api<TaskRow[]>(`/api/tasks?${sp}`)
       .then((data) => {
         if (params.get("mine") === "1" && user) {
@@ -49,10 +52,25 @@ export function List() {
       .catch((e: Error) => setErr(e.message));
   }
 
+  async function handleRestore(taskId: string) {
+    setErr(null);
+    try {
+      await api(`/api/tasks/${taskId}/archive`, {
+        method: "POST",
+        body: JSON.stringify({ archived: false }),
+      });
+      load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed to restore task");
+    }
+  }
+
   useEffect(() => {
     load();
   }, [params.toString()]);
 
+  const isArchivedView = params.get("archived") === "true";
+  const canRestore = user?.role === "lead" || user?.role === "manager";
   const activeFilterCount =
     (params.get("overdue") ? 1 : 0) +
     (params.get("unassigned") ? 1 : 0) +
@@ -76,7 +94,9 @@ export function List() {
             onClick={() => {
               setQ("");
               setVisibility("");
-              setParams(new URLSearchParams());
+              const next = new URLSearchParams();
+              if (isArchivedView) next.set("archived", "true");
+              setParams(next);
             }}
             className="text-xs font-medium text-brand hover:underline self-start sm:self-auto cursor-pointer"
           >
@@ -84,6 +104,56 @@ export function List() {
           </button>
         )}
       </div>
+
+      {/* Active vs Archived View Switcher */}
+      <div className="flex items-center gap-2 border-b border-border/60 pb-2">
+        <button
+          type="button"
+          onClick={() => {
+            const next = new URLSearchParams(params);
+            next.delete("archived");
+            setParams(next);
+          }}
+          className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+            !isArchivedView
+              ? "bg-slate-900 text-white shadow-xs"
+              : "text-muted hover:text-ink hover:bg-slate-100"
+          }`}
+        >
+          Active Tasks
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const next = new URLSearchParams(params);
+            next.set("archived", "true");
+            setParams(next);
+          }}
+          className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+            isArchivedView
+              ? "bg-slate-900 text-white shadow-xs"
+              : "text-muted hover:text-ink hover:bg-slate-100"
+          }`}
+        >
+          <span>Archived Tasks</span>
+          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+            isArchivedView ? "bg-slate-800 text-slate-200" : "bg-slate-200/80 text-slate-600"
+          }`}>
+            48h+
+          </span>
+        </button>
+      </div>
+
+      {isArchivedView && (
+        <div className="rounded-xl border border-slate-200 bg-slate-50/90 p-3.5 text-xs text-slate-600 flex items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-2">
+            <span className="text-base">📦</span>
+            <span>
+              <strong>Archived Tasks</strong> — Tasks completed over 48 hours ago or archived by authorized leads. Archived tasks remain fully preserved for audits and may be restored at any time.
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 bg-white p-3 rounded-2xl border border-border shadow-2xs">
@@ -160,6 +230,7 @@ export function List() {
                 <th className="px-4 py-3">Visibility</th>
                 <th className="px-4 py-3">Responsible</th>
                 <th className="px-4 py-3">State</th>
+                {isArchivedView && canRestore && <th className="px-4 py-3 text-right">Action</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
@@ -246,13 +317,25 @@ export function List() {
 
                     <td className="px-4 py-3.5 text-xs">
                       {t.archivedAt ? (
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
-                          Archived
-                        </span>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="rounded-full bg-slate-100 px-2.5 py-0.5 font-medium text-slate-600 text-center">
+                            Archived
+                          </span>
+                          <span className="text-[10px] text-muted text-center">
+                            {new Date(t.archivedAt).toLocaleDateString([], { month: "short", day: "numeric" })}
+                          </span>
+                        </div>
                       ) : complete ? (
-                        <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 font-semibold text-emerald-700 border border-emerald-200">
-                          Complete
-                        </span>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 font-semibold text-emerald-700 border border-emerald-200 text-center">
+                            Complete
+                          </span>
+                          {t.archiveAfter && (
+                            <span className="text-[10px] text-muted text-center">
+                              Auto-archives {new Date(t.archiveAfter).toLocaleDateString([], { month: "short", day: "numeric" })}
+                            </span>
+                          )}
+                        </div>
                       ) : due ? (
                         <span className="rounded-full bg-rose-50 px-2.5 py-0.5 font-semibold text-rose-700 border border-rose-200">
                           Due
@@ -263,6 +346,21 @@ export function List() {
                         </span>
                       )}
                     </td>
+
+                    {isArchivedView && canRestore && (
+                      <td className="px-4 py-3.5 text-right">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleRestore(t.id);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition shadow-2xs cursor-pointer"
+                        >
+                          Restore
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}

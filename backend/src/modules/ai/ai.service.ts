@@ -11,6 +11,14 @@ import { GeminiAiProvider } from "./geminiProvider.js";
 
 let providerInstance: AiProvider | null = null;
 
+/**
+ * Returns the singleton AiProvider instance configured for the application.
+ *
+ * Provider resolution:
+ * 1. "groq": Uses Groq's official OpenAI-compatible chat completions API (default model: openai/gpt-oss-20b).
+ * 2. "gemini": Uses Google Gemini API (gemini-3.8-flash) with automatic mock degradation on connection failure.
+ * 3. "mock" / default: Uses the zero-key deterministic mock engine for local testing and offline execution.
+ */
 export function getAiProvider(): AiProvider {
   if (providerInstance) return providerInstance;
 

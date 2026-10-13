@@ -141,6 +141,8 @@ model Task {
   boardColumn         BoardColumn    @default(TODO)
   boardRank           String         @default("000000500000")
   finishedAt          DateTime?
+  completedAt         DateTime?
+  archiveAfter        DateTime?
   archivedAt          DateTime?
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
@@ -156,6 +158,7 @@ model Task {
   @@index([priority])
   @@index([dueAt])
   @@index([archivedAt])
+  @@index([archiveAfter])
   @@index([boardColumn, boardRank])
 }
 
@@ -203,6 +206,7 @@ model Mention {
 model Conversation {
   id          String           @id @default(uuid())
   type        ConversationType
+  directKey   String?          @unique
   createdById String?
   createdBy   User?            @relation(fields: [createdById], references: [id], onDelete: Restrict)
   createdAt   DateTime         @default(now())
@@ -222,6 +226,7 @@ model ConversationParticipant {
   user              User         @relation(fields: [userId], references: [id], onDelete: Restrict)
   joinedAt          DateTime     @default(now())
   lastReadMessageId String?
+  clearedAt         DateTime?
 
   @@unique([conversationId, userId])
 }

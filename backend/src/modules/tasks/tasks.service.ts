@@ -4,6 +4,7 @@ import { errors } from "../../lib/errors.js";
 import { writeAudit } from "../audit/audit.service.js";
 import type { AuthUser } from "../../types/express.js";
 import { rankBetween, ranksForCount } from "./boardRank.js";
+import { ARCHIVE_DELAY_MS } from "./archive.service.js";
 import {
   canArchiveTask,
   canAssignTask,
@@ -211,6 +212,8 @@ export async function createTask(user: AuthUser, input: CreateInput) {
 
   const column = input.boardColumn ?? (input.workKind === "backlog" ? "TODO" : "TODO");
   const boardRank = await rankForInsert(column, null, null);
+  const isDone = column === "DONE";
+  const now = new Date();
 
   const t = await prisma.task.create({
     data: {
@@ -229,6 +232,9 @@ export async function createTask(user: AuthUser, input: CreateInput) {
       sourceMessageId: input.sourceMessageId ?? null,
       boardColumn: column,
       boardRank,
+      finishedAt: isDone ? now : null,
+      completedAt: isDone ? now : null,
+      archiveAfter: isDone ? new Date(now.getTime() + ARCHIVE_DELAY_MS) : null,
     },
     include: includeAccess(),
   });
@@ -357,14 +363,59 @@ export async function setVisibility(
   return updated;
 }
 
+/**
+ * Completes or reopens a task.
+ *
+ * Rules:
+ * - When finishing an active task: records finishedAt and completedAt, calculates
+ *   archiveAfter (now + 48 hours), and ensures archivedAt is cleared.
+ * - When re-finishing an already completed task: preserves original completion and archiveAfter timestamps.
+ * - When reopening a task: resets finishedAt, completedAt, archiveAfter, and archivedAt to null.
+ */
 export async function finishTask(user: AuthUser, taskId: string, finished: boolean) {
   const t = await loadTask(taskId);
   if (!(await canFinishTask(user, t))) throw errors.forbidden();
   const boardColumn = finished ? "DONE" : t.boardColumn === "DONE" ? "IN_PROGRESS" : t.boardColumn;
   const boardRank = boardColumn === t.boardColumn ? t.boardRank : await rankForInsert(boardColumn, null, null);
+
+  const now = new Date();
+  let finishedAt: Date | null = null;
+  let completedAt: Date | null = null;
+  let archiveAfter: Date | null = null;
+  let archivedAt: Date | null = null;
+
+  if (finished) {
+    if (t.finishedAt) {
+      // Preserve existing completion timestamps if already finished
+      finishedAt = t.finishedAt;
+      completedAt = t.completedAt ?? t.finishedAt;
+      archiveAfter = t.archiveAfter ?? new Date(t.finishedAt.getTime() + ARCHIVE_DELAY_MS);
+      archivedAt = t.archivedAt;
+    } else {
+      // First-time completion: 48h countdown starts
+      finishedAt = now;
+      completedAt = now;
+      archiveAfter = new Date(now.getTime() + ARCHIVE_DELAY_MS);
+      archivedAt = null;
+    }
+  } else {
+    // Reopening task: reset all completion and archival state
+    finishedAt = null;
+    completedAt = null;
+    archiveAfter = null;
+    archivedAt = null;
+  }
+
   const updated = await prisma.task.update({
     where: { id: taskId },
-    data: { finishedAt: finished ? new Date() : null, boardColumn, boardRank },
+    data: {
+      finishedAt,
+      completedAt,
+      archiveAfter,
+      archivedAt,
+      boardColumn,
+      boardRank,
+    },
   });
   await writeAudit({
     actorId: user.id,
@@ -376,6 +427,12 @@ export async function finishTask(user: AuthUser, taskId: string, finished: boole
   return updated;
 }
 
+/**
+ * Moves a task to a different board column or repositions it within a column.
+ *
+ * Moving to DONE triggers completion and starts the 48-hour auto-archive countdown.
+ * Moving out of DONE reopens the task and resets completion/archive countdowns.
+ */
 export async function moveTaskOnBoard(
   user: AuthUser,
   taskId: string,
@@ -387,30 +444,92 @@ export async function moveTaskOnBoard(
   if (!(await canMoveBoardTask(user, t, boardColumn))) throw errors.forbidden();
   const boardRank = await rankForInsert(boardColumn, prevId, nextId, taskId);
   const finished = boardColumn === "DONE";
+
+  const now = new Date();
+  let finishedAt: Date | null = null;
+  let completedAt: Date | null = null;
+  let archiveAfter: Date | null = null;
+  let archivedAt: Date | null = null;
+
+  if (finished) {
+    if (t.finishedAt) {
+      finishedAt = t.finishedAt;
+      completedAt = t.completedAt ?? t.finishedAt;
+      archiveAfter = t.archiveAfter ?? new Date(t.finishedAt.getTime() + ARCHIVE_DELAY_MS);
+      archivedAt = t.archivedAt;
+    } else {
+      finishedAt = now;
+      completedAt = now;
+      archiveAfter = new Date(now.getTime() + ARCHIVE_DELAY_MS);
+      archivedAt = null;
+    }
+  } else {
+    finishedAt = null;
+    completedAt = null;
+    archiveAfter = null;
+    archivedAt = null;
+  }
+
   const updated = await prisma.task.update({
     where: { id: taskId },
     data: {
       boardColumn,
       boardRank,
-      finishedAt: finished ? t.finishedAt ?? new Date() : null,
+      finishedAt,
+      completedAt,
+      archiveAfter,
+      archivedAt,
     },
   });
-  await writeAudit({
-    actorId: user.id,
-    action: "task.board_moved",
-    entityType: "task",
-    entityId: taskId,
-    metadata: { from: t.boardColumn, to: boardColumn },
-  });
+  if (finished && !t.finishedAt) {
+    await writeAudit({
+      actorId: user.id,
+      action: "task.completed",
+      entityType: "task",
+      entityId: taskId,
+      metadata: { finished: true, boardColumn: "DONE", from: t.boardColumn },
+    });
+  } else {
+    await writeAudit({
+      actorId: user.id,
+      action: "task.board_moved",
+      entityType: "task",
+      entityId: taskId,
+      metadata: { from: t.boardColumn, to: boardColumn },
+    });
+  }
   return updated;
 }
 
+/**
+ * Manually archives or unarchives/restores a task.
+ *
+ * Rules:
+ * - When archiving: marks archivedAt = now.
+ * - When restoring: clears archivedAt = null. If the task remains completed,
+ *   grants a fresh 48-hour review window (archiveAfter = now + 48h) before auto-archive triggers.
+ */
 export async function archiveTask(user: AuthUser, taskId: string, archived: boolean) {
   const t = await loadTask(taskId);
   if (!(await canArchiveTask(user, t))) throw errors.forbidden();
+
+  const now = new Date();
+  const updateData: Prisma.TaskUpdateInput = {
+    archivedAt: archived ? now : null,
+  };
+
+  if (!archived) {
+    // Restoring / unarchiving: if task remains completed, grant a fresh 48-hour review window
+    if (t.finishedAt) {
+      updateData.archiveAfter = new Date(now.getTime() + ARCHIVE_DELAY_MS);
+    } else {
+      updateData.archiveAfter = null;
+    }
+  }
+
   const updated = await prisma.task.update({
     where: { id: taskId },
-    data: { archivedAt: archived ? new Date() : null },
+    data: updateData,
   });
   await writeAudit({
     actorId: user.id,

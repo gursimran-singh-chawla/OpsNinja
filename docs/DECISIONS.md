@@ -81,3 +81,23 @@ Associates may set `assigneeId` to themselves on create or claim an unassigned v
 ## ADR-020 Board is a view, not a second workflow
 
 The Board tab stores `boardColumn` (`TODO|IN_PROGRESS|IN_REVIEW|DONE`) and `boardRank` for layout. Done is kept in sync with `finishedAt`. Moving cards does not change creator, visibility, or assignee. Status: current.
+
+## ADR-021 Identity Verification & Mandatory Admin Approval Gate
+
+Self-service registration requires Cloudflare Turnstile captcha validation and pure Argon2id hashing via WASM. Two-step verification dispatches a 6-digit numeric OTP via EmailJS REST API, storing only SHA-256 hashes with a 10-minute TTL and 5-attempt rate limit. Once verified, accounts enter a mandatory Administrative Approval Gate (`approvedAt != null`) before login sessions are permitted. Unapproved accounts return HTTP 403 `account_pending_approval`. Status: current.
+
+## ADR-022 Direct Message Lifecycle & User-Scoped Clear
+
+1:1 Direct Messages utilize deterministic pairing keys (`directKey: minId:maxId`) to prevent duplicate conversations. DMs appear only when an established conversation exists, preventing empty ghost chats. Users may delete/clear a DM from their view (`clearedAt` on `ConversationParticipant`) without affecting the counterparty's message history. Socket.IO room joins enforce strict participant authorization, rejecting non-participants with `FORBIDDEN`. Status: current.
+
+## ADR-023 Role-Based Activity Logs & Audit Separation
+
+Operational users access only Task Activity Logs (`task.created`, `task.assigned`, `task.completed`) strictly scoped to tasks they are authorized to view. Administrative platform operators inspect System & Account Logs (`user.*` and platform maintenance events) with all task title and description content strictly redacted. Status: current.
+
+## ADR-024 48-Hour Automated Task Archiving
+
+Completed tasks (`finishedAt`, `completedAt`) remain in active views during a 48-hour operational review window (`archiveAfter = completedAt + 48h`). A lightweight non-blocking background sweep worker runs on server startup and every 5 minutes to mark overdue completed tasks as `archivedAt = now`. Archived tasks are excluded from live boards, calendars, and summary metrics. Authorized Leads and Managers can restore tasks, which grants a fresh 48-hour review window. Reopening a task resets all completion and archival timestamps. Status: current.
+
+## ADR-025 SimuAI Multi-Provider Architecture
+
+SimuAI implements a unified `AiProvider` interface supporting Groq (`openai/gpt-oss-20b` default via OpenAI-compatible Chat Completions API), Google Gemini (`gemini-3.8-flash`), and an offline zero-key Mock provider fallback. SimuAI assists non-destructively (briefings, summaries, checklists, digests) and never mutates tasks. AI endpoints enforce a 30 req/min rate limit and handle provider failures gracefully. Status: current.

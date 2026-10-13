@@ -17,6 +17,8 @@ type Detail = {
   dueAt: string | null;
   visibilityType: string;
   finishedAt: string | null;
+  completedAt: string | null;
+  archiveAfter: string | null;
   archivedAt: string | null;
   createdBy: { name: string; role: string };
   assignee: { id: string; name: string } | null;
@@ -208,6 +210,45 @@ export function TaskDetail() {
         </div>
       </div>
 
+      {/* Archived Notice Banner */}
+      {t.archivedAt && (
+        <div className="rounded-2xl border border-slate-300 bg-slate-50 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 text-xs text-slate-700">
+            <span className="text-xl">📦</span>
+            <div>
+              <span className="font-semibold text-slate-900">This task was archived</span> on{" "}
+              {new Date(t.archivedAt).toLocaleDateString(undefined, { dateStyle: "medium" })} at{" "}
+              {new Date(t.archivedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.
+              <p className="text-slate-500 text-[11px] mt-0.5">
+                Archived tasks are excluded from daily operational boards and active views while full history is preserved.
+              </p>
+            </div>
+          </div>
+          {(user?.role === "lead" || user?.role === "manager") && (
+            <button
+              type="button"
+              onClick={() => void act("archive", { archived: false })}
+              className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 transition cursor-pointer"
+            >
+              Restore Task
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Completed Notice Banner (within 48h active window) */}
+      {!t.archivedAt && t.finishedAt && t.archiveAfter && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-xs text-emerald-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
+          <div className="flex items-center gap-2">
+            <span className="text-emerald-600 font-bold">✓</span>
+            <span>
+              <strong>Completed</strong> on {new Date(t.finishedAt).toLocaleDateString()}. Scheduled for automatic archive on{" "}
+              <strong>{new Date(t.archiveAfter).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</strong> (48 hours post-completion).
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Main Task Card */}
       <div className="rounded-2xl border border-slate-200/90 bg-white/90 p-6 shadow-xs backdrop-blur-xs">
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{t.title}</h1>
@@ -314,9 +355,9 @@ export function TaskDetail() {
 
           {(user?.role === "lead" || user?.role === "manager") && (
             <button
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-2xs hover:bg-slate-50 hover:text-slate-900 transition"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-2xs hover:bg-slate-50 hover:text-slate-900 transition cursor-pointer"
               onClick={() => {
-                if (confirm("Archive removes this task from the live queue. History is kept.")) {
+                if (t.archivedAt || confirm("Archive removes this task from active views and boards. History is preserved.")) {
                   void act("archive", { archived: !t.archivedAt });
                 }
               }}

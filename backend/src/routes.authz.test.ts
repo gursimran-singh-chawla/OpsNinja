@@ -49,6 +49,7 @@ vi.mock("./lib/prisma.js", () => {
       auditEvent: {
         count: vi.fn(),
         create: vi.fn(),
+        findMany: vi.fn(),
       },
     },
   };
@@ -446,6 +447,64 @@ describe("Route Authorization & Security Boundaries", () => {
         headers: cookieHeader("admin-session"),
       });
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe("Logs Route Boundaries & Role-Based Separation", () => {
+    it("rejects unauthenticated user accessing GET /api/platform/logs (401)", async () => {
+      const res = await fetch(`${baseUrl}/api/platform/logs`);
+      expect(res.status).toBe(401);
+    });
+
+    it("rejects regular user (Associate) accessing GET /api/platform/logs/system (403)", async () => {
+      const res = await fetch(`${baseUrl}/api/platform/logs/system`, {
+        headers: cookieHeader("assoc-session"),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it("rejects regular user requesting system category on GET /api/platform/logs?category=system (403)", async () => {
+      const res = await fetch(`${baseUrl}/api/platform/logs?category=system`, {
+        headers: cookieHeader("assoc-session"),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it("rejects regular user requesting user entityType on GET /api/platform/logs?entityType=user (403)", async () => {
+      const res = await fetch(`${baseUrl}/api/platform/logs?entityType=user`, {
+        headers: cookieHeader("assoc-session"),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it("rejects Admin accessing GET /api/platform/logs/tasks (403 - Admin sees no task content)", async () => {
+      const res = await fetch(`${baseUrl}/api/platform/logs/tasks`, {
+        headers: cookieHeader("admin-session"),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it("permits Admin to access GET /api/platform/logs/system (200 OK)", async () => {
+      vi.mocked(prisma.auditEvent.count).mockResolvedValue(0);
+      vi.mocked(prisma.auditEvent.findMany).mockResolvedValue([]);
+
+      const res = await fetch(`${baseUrl}/api/platform/logs/system`, {
+        headers: cookieHeader("admin-session"),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data).toEqual([]);
+    });
+
+    it("permits Associate to access GET /api/platform/logs and routes to task activity (200 OK)", async () => {
+      vi.mocked(prisma.auditEvent.findMany).mockResolvedValue([]);
+
+      const res = await fetch(`${baseUrl}/api/platform/logs`, {
+        headers: cookieHeader("assoc-session"),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data).toEqual([]);
     });
   });
 });

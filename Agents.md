@@ -23,7 +23,7 @@ It is a unified, real-time workspace to communicate about operational issues, tu
   - Free agents may be assigned by authorized Managers or Leads.
   - Associates cannot assign others. They may **self-assign** an unassigned visible task or leave it unassigned.
 - **Organizational Visibility:** Leads possess organization-wide operational visibility across all tasks.
-- **Lifecycle & Retention:** Complete = `finishedAt`. Archive = `archivedAt`. Tasks are never hard-deleted.
+- **Lifecycle & Retention:** Active → Complete (`finishedAt`, `completedAt`) → Archived (`archivedAt`). Tasks completed for more than 48 hours are automatically archived (`archiveAfter = completedAt + 48h`) by a lightweight background sweep worker. Tasks are never hard-deleted. Restoring an archived task grants a fresh 48-hour review window. Reopening resets all completion and archival timestamps.
 - **Computed Deadlines:** **Due** is computed dynamically (`finishedAt == null && dueAt < now`). It is not a manual status flag.
 - **Database Truth:** PostgreSQL is the single source of truth. WebSockets (Socket.IO) are strictly ephemeral event relays.
 - **Non-Destructive AI:** AI assists with operational briefings, summaries, next action recommendations, and catch-up digests. AI never mutates tasks. The platform remains fully operational if AI is offline.
@@ -39,7 +39,7 @@ It is a unified, real-time workspace to communicate about operational issues, tu
    - 6-digit numeric OTP generated via crypto.
    - Only SHA-256 OTP hashes stored in the database.
    - Sent via EmailJS REST API client with timeout protection.
-   - Enforces a 15-minute TTL, 5-attempt rate limit, and 60-second resend cooldown timer.
+   - Enforces a 10-minute TTL, 5-attempt rate limit, and 60-second resend cooldown timer.
    - Incomplete signup records are automatically deleted if email delivery fails.
 4. **Mandatory Admin Approval Gate:**
    - New accounts require administrative approval (`approvedAt != null`) before login is permitted.
@@ -54,12 +54,14 @@ It is a unified, real-time workspace to communicate about operational issues, tu
 
 ## Collaboration & Operational Features
 
-- **Realtime Chat:** Global operations conversation + 1:1 Direct Messages (DMs). Ephemeral Socket.IO event broadcasting with PostgreSQL persistence.
+- **Realtime Chat & DMs:** Global operations conversation + 1:1 Direct Messages (DMs). Deterministic DM pairing via `directKey`, user-scoped conversation deletion (`clearedAt` on `ConversationParticipant`), participant checks preventing empty ghost conversations, and Socket.IO room authorization on join.
 - **Operations Calendar:** Day, Week, and Month views displaying task deadlines (`dueAt`). Overdue tasks are highlighted. Admin access is strictly guarded.
 - **Video Meetings:** Meetings hub with Jitsi Meet integration (`meet.jit.si`) for rapid operational syncs with status lifecycles.
-- **System Audit Logs:** Immutable `AuditEvent` records for user actions, task modifications, and status changes. Platform `/logs` endpoint redacts task content when accessed by Admins.
+- **Role-Based Activity & System Audit Logs:**
+  - Regular users see only **Task Activity Logs** (`task.created`, `task.assigned`, `task.completed`) strictly scoped to visible tasks.
+  - Platform administrators review **System & Account Logs** (`user.*` lifecycle and platform maintenance events) with task content redacted.
 - **SimuAI Intelligence:**
-  - Provider abstraction (`AiProvider`) supporting **Groq** (`openai/gpt-oss-20b` via native REST), **Gemini** (`gemini-3.8-flash`), and offline **Mock** fallback.
+  - Provider abstraction (`AiProvider`) supporting **Groq** (`openai/gpt-oss-20b` default via OpenAI-compatible REST completions), **Gemini** (`gemini-3.8-flash`), and offline **Mock** fallback.
   - Operational briefings rendered via `react-markdown` and `remark-gfm` supporting tables, checklists, and operational metrics.
   - Request rate limiting (`aiLimiter`: 30 req/min) and graceful degradation on provider errors or rate limits (HTTP 429).
 
@@ -83,27 +85,27 @@ OpsNinja/
 ├── backend/
 │   ├── prisma/
 │   │   ├── schema.prisma       # Database schema & indexes
-│   │   ├── migrations/         # Tracked SQL migrations
+│   │   ├── migrations/         # Tracked SQL migrations (9 applied)
 │   │   └── seed.ts             # Deterministic mock operations seed
 │   └── src/
 │       ├── config/env.ts       # Validated Zod environment configuration
 │       ├── middleware/         # Session auth, role checks, error handler
 │       ├── modules/
 │       │   ├── identity/       # Auth, OTP, EmailJS, Turnstile, Users
-│       │   ├── tasks/          # Policy, RBAC, fractional rank, task service
-│       │   ├── communication/  # Chat service, DM privacy, Socket.IO
-│       │   ├── platform/       # Admin metrics, audit logs
+│       │   ├── tasks/          # Policy, RBAC, fractional rank, task service, 48h auto-archive
+│       │   ├── communication/  # Chat service, DM lifecycle, clearedAt, Socket.IO
+│       │   ├── platform/       # Admin metrics, user management, audit logs, log service
 │       │   └── ai/             # AiProvider, Groq, Gemini, Mock providers
 │       ├── app.ts              # Express application setup
-│       └── server.ts           # HTTP & Socket.IO server entrypoint
+│       └── server.ts           # HTTP & Socket.IO server entrypoint, archive worker lifecycle
 ├── frontend/
 │   └── src/
 │       ├── api.ts              # API client with VITE_API_BASE_URL & ApiError
 │       ├── auth.tsx             # Auth context, user state, approval feedback
 │       ├── components/         # MarkdownRenderer, TurnstileWidget, modals
-│       ├── pages/              # Summary, Tasks, People, Admin, Chat, Calendar, Meetings, Logs
+│       ├── pages/              # Summary, Tasks (List/Board), People, Admin, Chat, Calendar, Meetings, Logs
 │       └── Shell.tsx           # Responsive layout & role-aware navigation
-├── docs/                       # Integration guides (EmailJS, deployment)
+├── docs/                       # Architecture, Database, Decisions, Guides
 └── package.json                # Monorepo workspaces manifest
 ```
 
@@ -126,7 +128,7 @@ OpsNinja/
 Execute read-only verification before pushing changes:
 
 ```bash
-# Run all backend tests (114 tests)
+# Run all backend tests (169 tests across 9 test suites)
 npm test
 
 # Verify backend TypeScript compilation

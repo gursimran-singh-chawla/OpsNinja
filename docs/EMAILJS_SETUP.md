@@ -119,7 +119,7 @@ EMAILJS_PRIVATE_KEY="your_private_key"
 4. Submit the registration form.
 5. Check your inbox for the EmailJS OTP message.
 6. Enter the 6-digit code on the `/verify-email` screen.
-7. Confirm that you are authenticated and redirected into the dashboard with a valid session.
+7. Confirm that your email verification succeeds. In accordance with the mandatory Admin Approval Gate, your account will display the **"Account Pending Approval"** screen. An administrator must approve your account on the Admin Platform (`/admin`) before login is permitted.
 8. Test failure paths:
    - Entering an incorrect code displays an error and tracks attempts (up to 5).
    - Clicking "Resend code" respects the 60-second cooldown timer.

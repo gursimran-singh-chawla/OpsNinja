@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { prisma } from "../../lib/prisma.js";
 import { asyncHandler } from "../../lib/asyncHandler.js";
+import { errors } from "../../lib/errors.js";
 import { requireAuth, requireRole } from "../../middleware/requireAuth.js";
+import { getTaskActivityLogs, getSystemAuditLogs } from "./logs.service.js";
 
 export const platformRouter = Router();
 platformRouter.use(requireAuth);
@@ -29,48 +31,71 @@ platformRouter.get(
   }),
 );
 
+/**
+ * Dedicated endpoint for regular users to retrieve permitted task activity logs.
+ * Strictly forbidden for administrators (Admin sees no task content).
+ */
+platformRouter.get(
+  "/logs/tasks",
+  asyncHandler(async (req, res) => {
+    if (req.user!.role === "admin") throw errors.forbidden();
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : undefined;
+    const action = typeof req.query.action === "string" ? req.query.action.trim() : undefined;
+    const page = req.query.page ? Number(req.query.page) : undefined;
+    const limit = req.query.limit ? Number(req.query.limit) : undefined;
+
+    const result = await getTaskActivityLogs(req.user!, { q, action, page, limit });
+    res.json({ data: result.data, meta: { total: result.total } });
+  }),
+);
+
+/**
+ * Dedicated administrative audit endpoint for system and account-lifecycle events.
+ * Strictly restricted to administrators only.
+ */
+platformRouter.get(
+  "/logs/system",
+  requireRole("admin"),
+  asyncHandler(async (req, res) => {
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : undefined;
+    const action = typeof req.query.action === "string" ? req.query.action.trim() : undefined;
+    const page = req.query.page ? Number(req.query.page) : undefined;
+    const limit = req.query.limit ? Number(req.query.limit) : undefined;
+
+    const result = await getSystemAuditLogs(req.user!, { q, action, page, limit });
+    res.json({ data: result.data, meta: { total: result.total } });
+  }),
+);
+
+/**
+ * Canonical /logs endpoint:
+ * Automatically routes to role-appropriate log view:
+ * - Administrators -> System and account lifecycle events
+ * - Regular users -> Scoped task activity feed (task.created, task.assigned, task.completed)
+ * Rejects non-admin attempts to request administrative logs.
+ */
 platformRouter.get(
   "/logs",
   asyncHandler(async (req, res) => {
+    const user = req.user!;
     const q = typeof req.query.q === "string" ? req.query.q.trim() : undefined;
-    const entityType = typeof req.query.entityType === "string" ? req.query.entityType.trim() : undefined;
-    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 200);
+    const action = typeof req.query.action === "string" ? req.query.action.trim() : undefined;
+    const page = req.query.page ? Number(req.query.page) : undefined;
+    const limit = req.query.limit ? Number(req.query.limit) : undefined;
 
-    const where: any = {};
-    if (entityType && entityType !== "all") {
-      where.entityType = entityType;
-    }
-    if (q) {
-      where.OR = [
-        { action: { contains: q, mode: "insensitive" } },
-        { entityId: { contains: q, mode: "insensitive" } },
-        { actor: { name: { contains: q, mode: "insensitive" } } },
-        { actor: { email: { contains: q, mode: "insensitive" } } },
-      ];
-    }
-
-    const events = await prisma.auditEvent.findMany({
-      where,
-      take: limit,
-      orderBy: { createdAt: "desc" },
-      include: {
-        actor: {
-          select: { id: true, name: true, email: true, role: true },
-        },
-      },
-    });
-
-    // Enforce AGENTS.md locked rule: Admin sees NO task content (no exceptions)
-    const sanitized = events.map((ev) => {
-      if (req.user?.role === "admin" && ev.entityType === "task" && ev.metadata && typeof ev.metadata === "object") {
-        const meta = { ...(ev.metadata as Record<string, unknown>) };
-        if ("title" in meta) meta.title = "[Task Content Redacted — Admin Policy]";
-        if ("description" in meta) meta.description = "[Task Content Redacted — Admin Policy]";
-        return { ...ev, metadata: meta };
+    // Check if regular user requested administrative or user-lifecycle logs
+    if (user.role !== "admin") {
+      const requestedEntity = typeof req.query.entityType === "string" ? req.query.entityType.trim() : undefined;
+      const requestedCategory = typeof req.query.category === "string" ? req.query.category.trim() : undefined;
+      if (requestedEntity === "user" || requestedCategory === "system") {
+        throw errors.forbidden();
       }
-      return ev;
-    });
+      const result = await getTaskActivityLogs(user, { q, action, page, limit });
+      return res.json({ data: result.data, meta: { total: result.total } });
+    }
 
-    res.json({ data: sanitized });
+    // Administrator requesting logs
+    const result = await getSystemAuditLogs(user, { q, action, page, limit });
+    return res.json({ data: result.data, meta: { total: result.total } });
   }),
 );
