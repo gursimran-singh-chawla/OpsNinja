@@ -101,3 +101,37 @@ export async function canMoveBoardTask(user: AuthUser, t: TaskWithAccess, toColu
 export async function canComment(user: AuthUser, t: TaskWithAccess) {
   return (await canViewTask(user, t)) && user.role !== "admin";
 }
+
+export type EditableTaskField = "title" | "description" | "category" | "priority" | "dueAt";
+
+export function canEditTaskField(user: AuthUser, field: EditableTaskField): boolean {
+  if (user.role === "admin") return false;
+  if (user.role === "lead" || user.role === "manager") return true;
+  if (user.role === "associate") {
+    return field === "title" || field === "description";
+  }
+  return false;
+}
+
+export async function canEditTask(user: AuthUser, t: TaskWithAccess): Promise<boolean> {
+  if (user.role === "admin") return false;
+  if (t.archivedAt) return false;
+  if (!(await canViewTask(user, t))) return false;
+
+  if (user.role === "lead") return true;
+
+  if (user.role === "manager") {
+    if (t.createdById === user.id) return true;
+    if (t.visibilityManagerId === user.id) return true;
+    if (t.assigneeId === user.id) return true;
+    const team = await teamAssociateIds(user.id);
+    if (t.assigneeId && team.includes(t.assigneeId)) return true;
+    return false;
+  }
+
+  if (user.role === "associate") {
+    return t.createdById === user.id || t.assigneeId === user.id;
+  }
+
+  return false;
+}

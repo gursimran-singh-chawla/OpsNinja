@@ -16,16 +16,31 @@ type Detail = {
   priority: string;
   dueAt: string | null;
   visibilityType: string;
+  visibilityManagerId?: string | null;
+  createdById?: string;
   finishedAt: string | null;
   completedAt: string | null;
   archiveAfter: string | null;
   archivedAt: string | null;
-  createdBy: { name: string; role: string };
-  assignee: { id: string; name: string } | null;
+  createdBy: { id?: string; name: string; role: string };
+  assignee: { id: string; name: string; reportsToId?: string | null } | null;
   assignedBy: { name: string } | null;
   visibilityManager: { name: string } | null;
   comments: { id: string; body: string; createdAt: string; author: { name: string } }[];
 };
+
+function toDatetimeLocal(isoString?: string | null): string {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const year = d.getFullYear();
+  const month = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
 
 export function TaskDetail() {
   const { id } = useParams();
@@ -44,6 +59,17 @@ export function TaskDetail() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiErr, setAiErr] = useState<string | null>(null);
   const [copiedAi, setCopiedAi] = useState(false);
+
+  // Edit task modal states
+  const [editOpen, setEditOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editCategory, setEditCategory] = useState("normal");
+  const [editPriority, setEditPriority] = useState("normal");
+  const [editDueAt, setEditDueAt] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editErr, setEditErr] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   async function load() {
     if (!id) return;
@@ -160,6 +186,92 @@ export function TaskDetail() {
   const canAssignOthers = user?.role === "lead" || user?.role === "manager";
   const canClaim = user?.role === "associate" && !t.assignee;
 
+  // Task editing permissions
+  const isArchived = Boolean(t.archivedAt);
+  const isCreator = t.createdBy?.id === user?.id || t.createdById === user?.id;
+  const isAssignee = t.assignee?.id === user?.id;
+  const isTeamManager =
+    user?.role === "manager" &&
+    (isCreator ||
+      t.visibilityManagerId === user?.id ||
+      isAssignee ||
+      (t.assignee && people.some((p) => p.id === t.assignee?.id && p.reportsToId === user?.id)));
+
+  const canEdit =
+    !isArchived &&
+    user?.role !== "admin" &&
+    (user?.role === "lead" || isTeamManager || (user?.role === "associate" && (isCreator || isAssignee)));
+
+  const canEditMetadata = user?.role === "lead" || user?.role === "manager";
+
+  function openEdit() {
+    if (!t) return;
+    setEditTitle(t.title);
+    setEditDescription(t.description || "");
+    setEditCategory(t.category);
+    setEditPriority(t.priority);
+    setEditDueAt(toDatetimeLocal(t.dueAt));
+    setEditErr(null);
+    setEditOpen(true);
+  }
+
+  async function handleSaveEdit(e: FormEvent) {
+    e.preventDefault();
+    if (!t || !id) return;
+    const trimmedTitle = editTitle.trim();
+    if (trimmedTitle.length < 3) {
+      setEditErr("Title must be at least 3 characters");
+      return;
+    }
+    if (trimmedTitle.length > 160) {
+      setEditErr("Title must be at most 160 characters");
+      return;
+    }
+    if (editDescription.length > 8000) {
+      setEditErr("Description must be at most 8000 characters");
+      return;
+    }
+
+    setEditSaving(true);
+    setEditErr(null);
+
+    const patchPayload: Record<string, unknown> = {};
+    if (trimmedTitle !== t.title) patchPayload.title = trimmedTitle;
+    if (editDescription !== (t.description || "")) patchPayload.description = editDescription;
+
+    if (canEditMetadata) {
+      if (editCategory !== t.category) patchPayload.category = editCategory;
+      if (editPriority !== t.priority) patchPayload.priority = editPriority;
+
+      const currentDueTime = t.dueAt ? new Date(t.dueAt).getTime() : null;
+      const newDueTime = editDueAt ? new Date(editDueAt).getTime() : null;
+      if (currentDueTime !== newDueTime) {
+        patchPayload.dueAt = editDueAt ? new Date(editDueAt).toISOString() : null;
+      }
+    }
+
+    if (Object.keys(patchPayload).length === 0) {
+      setEditSaving(false);
+      setEditOpen(false);
+      return;
+    }
+
+    try {
+      await api(`/api/tasks/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(patchPayload),
+      });
+      setEditSaving(false);
+      setEditOpen(false);
+      setSuccessMsg("Task updated successfully");
+      setTimeout(() => setSuccessMsg(null), 4000);
+      await load();
+    } catch (error) {
+      setEditSaving(false);
+      setEditErr(error instanceof Error ? error.message : "Failed to update task");
+    }
+  }
+
   // Work kind styles
   const workKindBadges: Record<string, string> = {
     escalation: "bg-amber-50 text-amber-700 ring-1 ring-amber-300",
@@ -209,6 +321,23 @@ export function TaskDetail() {
           </span>
         </div>
       </div>
+
+      {/* Success Notification Banner */}
+      {successMsg && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-800 shadow-2xs flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-emerald-600 font-bold">✓</span>
+            <span>{successMsg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSuccessMsg(null)}
+            className="text-emerald-700 hover:text-emerald-900 text-xs cursor-pointer font-bold"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Archived Notice Banner */}
       {t.archivedAt && (
@@ -315,6 +444,16 @@ export function TaskDetail() {
               onClick={() => void act("claim", {})}
             >
               ✋ Take this task
+            </button>
+          )}
+
+          {canEdit && (
+            <button
+              type="button"
+              onClick={openEdit}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:border-indigo-300 hover:text-indigo-600 hover:bg-slate-50 transition cursor-pointer"
+            >
+              <span>✏️</span> Edit task
             </button>
           )}
 
@@ -577,6 +716,171 @@ export function TaskDetail() {
           ))}
         </div>
       </section>
+
+      {/* Edit Task Modal */}
+      {editOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs animate-fade-in">
+          <form
+            onSubmit={(e) => void handleSaveEdit(e)}
+            className="relative max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-200/90 bg-white p-6 shadow-2xl"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 text-sm font-bold shadow-2xs">
+                  ✏️
+                </span>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">Edit Task</h2>
+                  <p className="text-[11px] text-slate-400">
+                    {canEditMetadata
+                      ? "Update core properties, classification, priority, or deadline."
+                      : "You can update the title and description of your assigned task."}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditOpen(false)}
+                disabled={editSaving}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Error Message inside Modal */}
+            {editErr && (
+              <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
+                {editErr}
+              </div>
+            )}
+
+            {/* Title */}
+            <label className="mt-4 block text-xs font-semibold text-slate-700">
+              Title <span className="text-rose-500">*</span>
+              <input
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                required
+                minLength={3}
+                maxLength={160}
+                placeholder="Clear, actionable title"
+                className={field}
+                disabled={editSaving}
+              />
+              <span className="mt-1 block text-[10px] text-slate-400">Between 3 and 160 characters</span>
+            </label>
+
+            {/* Description */}
+            <label className="mt-3 block text-xs font-semibold text-slate-700">
+              Description
+              <textarea
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                rows={4}
+                maxLength={8000}
+                placeholder="Describe the task and operational requirements... (empty to clear)"
+                className={field}
+                disabled={editSaving}
+              />
+              <span className="mt-1 block text-[10px] text-slate-400">
+                {editDescription.length}/8,000 characters
+              </span>
+            </label>
+
+            {/* Category and Priority (Lead / Manager only) */}
+            {canEditMetadata ? (
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="text-xs font-semibold text-slate-700">
+                  Operational Domain
+                  <select
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value)}
+                    className={field}
+                    disabled={editSaving}
+                  >
+                    {["normal", "escalation", "inventory", "vendor", "customer", "other"].map((c) => (
+                      <option key={c} value={c}>
+                        {c.charAt(0).toUpperCase() + c.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="text-xs font-semibold text-slate-700">
+                  Priority
+                  <select
+                    value={editPriority}
+                    onChange={(e) => setEditPriority(e.target.value)}
+                    className={field}
+                    disabled={editSaving}
+                  >
+                    {["low", "normal", "high", "urgent"].map((p) => (
+                      <option key={p} value={p}>
+                        {p.charAt(0).toUpperCase() + p.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            ) : (
+              <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 p-3 text-[11px] text-slate-500">
+                ℹ️ <strong>Category, Priority & Deadline:</strong> Restricted to Leads and Managers.
+              </div>
+            )}
+
+            {/* Deadline (Lead / Manager only) */}
+            {canEditMetadata && (
+              <div className="mt-3">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Deadline
+                  <div className="mt-1 flex items-center gap-2">
+                    <input
+                      type="datetime-local"
+                      value={editDueAt}
+                      onChange={(e) => setEditDueAt(e.target.value)}
+                      className={field}
+                      disabled={editSaving}
+                    />
+                    {editDueAt && (
+                      <button
+                        type="button"
+                        onClick={() => setEditDueAt("")}
+                        className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition cursor-pointer"
+                        title="Clear deadline"
+                        disabled={editSaving}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </label>
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div className="mt-6 flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => setEditOpen(false)}
+                disabled={editSaving}
+                className={btn}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={editSaving}
+                className={btnPrimary}
+              >
+                {editSaving ? "Saving changes…" : "Save Changes"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

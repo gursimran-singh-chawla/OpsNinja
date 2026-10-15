@@ -8,6 +8,8 @@ import {
   canAssignTask,
   canUseVisibilityOnCreate,
   canMoveBoardTask,
+  canEditTask,
+  canEditTaskField,
   isOverdue,
   type TaskWithAccess,
 } from "./policy.js";
@@ -126,5 +128,72 @@ describe("task policy", () => {
     expect(isOverdue(past)).toBe(true);
     expect(isOverdue(future)).toBe(false);
     expect(isOverdue(done)).toBe(false);
+  });
+
+  describe("canEditTask and field permissions", () => {
+    it("admin cannot edit any task", async () => {
+      const t = task({ visibilityType: "GLOBAL", createdById: "lead" });
+      expect(await canEditTask(admin, t)).toBe(false);
+      expect(canEditTaskField(admin, "title")).toBe(false);
+      expect(canEditTaskField(admin, "category")).toBe(false);
+    });
+
+    it("archived task cannot be edited by anyone", async () => {
+      const t = task({ visibilityType: "GLOBAL", archivedAt: new Date() });
+      expect(await canEditTask(lead, t)).toBe(false);
+      expect(await canEditTask(mgr, t)).toBe(false);
+      expect(await canEditTask(assoc, t)).toBe(false);
+    });
+
+    it("lead can edit any accessible task and all fields", async () => {
+      const t = task({ visibilityType: "GLOBAL", createdById: "other" });
+      expect(await canEditTask(lead, t)).toBe(true);
+      expect(canEditTaskField(lead, "title")).toBe(true);
+      expect(canEditTaskField(lead, "description")).toBe(true);
+      expect(canEditTaskField(lead, "category")).toBe(true);
+      expect(canEditTaskField(lead, "priority")).toBe(true);
+      expect(canEditTaskField(lead, "dueAt")).toBe(true);
+    });
+
+    it("manager can edit tasks they created or within their team scope", async () => {
+      const created = task({ visibilityType: "TEAM", visibilityManagerId: "m1", createdById: "m1" });
+      expect(await canEditTask(mgr, created)).toBe(true);
+
+      const visManager = task({ visibilityType: "TEAM", visibilityManagerId: "m1", createdById: "lead" });
+      expect(await canEditTask(mgr, visManager)).toBe(true);
+
+      const assignedToMgr = task({ visibilityType: "GLOBAL", createdById: "lead", assigneeId: "m1" });
+      expect(await canEditTask(mgr, assignedToMgr)).toBe(true);
+
+      // Manager cannot edit tasks outside their scope (e.g. other manager's team or global not owned)
+      const otherTeam = task({ visibilityType: "TEAM", visibilityManagerId: "m2", createdById: "m2" });
+      expect(await canEditTask(mgr, otherTeam)).toBe(false);
+
+      const unownedGlobal = task({ visibilityType: "GLOBAL", createdById: "lead", assigneeId: null });
+      expect(await canEditTask(mgr, unownedGlobal)).toBe(false);
+
+      expect(canEditTaskField(mgr, "title")).toBe(true);
+      expect(canEditTaskField(mgr, "description")).toBe(true);
+      expect(canEditTaskField(mgr, "category")).toBe(true);
+      expect(canEditTaskField(mgr, "priority")).toBe(true);
+      expect(canEditTaskField(mgr, "dueAt")).toBe(true);
+    });
+
+    it("associate can edit tasks they created or are assigned to, but only title and description", async () => {
+      const createdByAssoc = task({ visibilityType: "GLOBAL", createdById: "a1", assigneeId: null });
+      expect(await canEditTask(assoc, createdByAssoc)).toBe(true);
+
+      const assignedToAssoc = task({ visibilityType: "GLOBAL", createdById: "lead", assigneeId: "a1" });
+      expect(await canEditTask(assoc, assignedToAssoc)).toBe(true);
+
+      const otherAssocTask = task({ visibilityType: "GLOBAL", createdById: "lead", assigneeId: "a2" });
+      expect(await canEditTask(assoc, otherAssocTask)).toBe(false);
+
+      expect(canEditTaskField(assoc, "title")).toBe(true);
+      expect(canEditTaskField(assoc, "description")).toBe(true);
+      expect(canEditTaskField(assoc, "category")).toBe(false);
+      expect(canEditTaskField(assoc, "priority")).toBe(false);
+      expect(canEditTaskField(assoc, "dueAt")).toBe(false);
+    });
   });
 });

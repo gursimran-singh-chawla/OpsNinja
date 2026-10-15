@@ -41,6 +41,27 @@ const createSchema = z.object({
   boardColumn: z.enum(["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"]).optional(),
 });
 
+const patchTaskSchema = z
+  .object({
+    title: z
+      .string()
+      .transform((s) => s.trim())
+      .pipe(z.string().min(3, "Title must be at least 3 characters").max(160, "Title must be at most 160 characters"))
+      .optional(),
+    description: z
+      .string()
+      .max(8000, "Description must be at most 8000 characters")
+      .transform((s) => (s.trim().length === 0 ? "" : s))
+      .optional(),
+    category: z.enum(["normal", "escalation", "inventory", "vendor", "customer", "other"]).optional(),
+    priority: z.enum(["low", "normal", "high", "urgent"]).optional(),
+    dueAt: z.string().datetime({ message: "Invalid datetime" }).nullable().optional(),
+  })
+  .strict()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "PATCH body must contain at least one field to update",
+  });
+
 tasksRouter.get(
   "/",
   asyncHandler(async (req, res) => {
@@ -75,6 +96,19 @@ tasksRouter.get(
   asyncHandler(async (req, res) => {
     if (req.user?.role === "admin") throw errors.forbidden();
     res.json({ data: await tasks.getTask(req.user!, req.params.id) });
+  }),
+);
+
+tasksRouter.patch(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    if (req.user?.role === "admin") throw errors.forbidden();
+    const body = patchTaskSchema.parse(req.body);
+    const data = await tasks.updateTask(req.user!, req.params.id, {
+      ...body,
+      dueAt: body.dueAt !== undefined ? (body.dueAt ? new Date(body.dueAt) : null) : undefined,
+    });
+    res.json({ data });
   }),
 );
 

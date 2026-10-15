@@ -174,6 +174,17 @@ describe("Route Authorization & Security Boundaries", () => {
       const body = await res.json();
       expect(body.error.code).toBe("unauthorized");
     });
+
+    it("rejects task editing when unauthenticated (PATCH /api/tasks/:id)", async () => {
+      const res = await fetch(`${baseUrl}/api/tasks/123e4567-e89b-12d3-a456-426614174000`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "Unauthorized title edit" }),
+      });
+      expect(res.status).toBe(401);
+      const body = await res.json();
+      expect(body.error.code).toBe("unauthorized");
+    });
   });
 
   describe("Admin boundaries: platform power vs NO task content", () => {
@@ -219,6 +230,20 @@ describe("Route Authorization & Security Boundaries", () => {
           priority: "normal",
           visibilityType: "GLOBAL",
         }),
+      });
+      expect(res.status).toBe(403);
+      const body = await res.json();
+      expect(body.error.code).toBe("forbidden");
+    });
+
+    it("strictly returns 403 Forbidden when Admin calls PATCH /api/tasks/:id", async () => {
+      const res = await fetch(`${baseUrl}/api/tasks/123e4567-e89b-12d3-a456-426614174000`, {
+        method: "PATCH",
+        headers: {
+          ...cookieHeader("admin-session"),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ title: "Admin attempt to edit" }),
       });
       expect(res.status).toBe(403);
       const body = await res.json();

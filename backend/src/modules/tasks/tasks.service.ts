@@ -11,12 +11,15 @@ import {
   canAssignTarget,
   canChangeVisibility,
   canCreateTask,
+  canEditTask,
+  canEditTaskField,
   canFinishTask,
   canMoveBoardTask,
   canSelfAssignTask,
   canUseVisibilityOnCreate,
   canViewTask,
   isOverdue,
+  type EditableTaskField,
   type TaskWithAccess,
 } from "./policy.js";
 
@@ -288,6 +291,124 @@ export async function createTask(user: AuthUser, input: CreateInput) {
   }
 
   return getTask(user, t.id);
+}
+
+export type UpdateTaskInput = {
+  title?: string;
+  description?: string;
+  category?: TaskCategory;
+  priority?: TaskPriority;
+  dueAt?: Date | null;
+};
+
+/**
+ * Updates permitted task fields with role-based field authorization.
+ *
+ * Enforces:
+ * - Lead: allowed all supported fields on any accessible task.
+ * - Manager: allowed all supported fields within their team scope.
+ * - Associate: allowed only title and description on tasks they created or are assigned to.
+ * - Admin: strictly forbidden (Admin sees no task content).
+ * - Archived tasks: strictly rejected until restored.
+ * - Completed tasks: editable without restarting the 48h archival countdown.
+ * - No-op updates: return current task without touching DB timestamps or creating audit events.
+ * - Atomic transaction: persists task update and task.updated audit event atomically.
+ */
+export async function updateTask(user: AuthUser, id: string, patch: UpdateTaskInput) {
+  assertOps(user);
+  const t = await loadTask(id);
+
+  // Return 404 for inaccessible tasks to prevent leaking existence/contents
+  if (!(await canViewTask(user, t))) {
+    throw errors.notFound("Task");
+  }
+
+  // Reject edits to archived tasks
+  if (t.archivedAt) {
+    throw errors.badRequest("Archived tasks cannot be edited. Restore the task first.");
+  }
+
+  // Verify task-level edit permission
+  if (!(await canEditTask(user, t))) {
+    throw errors.forbidden();
+  }
+
+  // Preserve business invariant: escalations require a deadline
+  if (t.workKind === "escalation" && patch.dueAt === null) {
+    throw errors.badRequest("Escalations require a deadline");
+  }
+
+  // Determine which fields are actually changing
+  const changedFields: EditableTaskField[] = [];
+  const changes: Record<string, { from: unknown; to: unknown }> = {};
+  const dataToUpdate: Prisma.TaskUpdateInput = {};
+
+  if (patch.title !== undefined && patch.title !== t.title) {
+    changedFields.push("title");
+    changes.title = { from: t.title, to: patch.title };
+    dataToUpdate.title = patch.title;
+  }
+  if (patch.description !== undefined && patch.description !== t.description) {
+    changedFields.push("description");
+    changes.description = { from: "[updated]", to: "[updated]" };
+    dataToUpdate.description = patch.description;
+  }
+  if (patch.category !== undefined && patch.category !== t.category) {
+    changedFields.push("category");
+    changes.category = { from: t.category, to: patch.category };
+    dataToUpdate.category = patch.category;
+  }
+  if (patch.priority !== undefined && patch.priority !== t.priority) {
+    changedFields.push("priority");
+    changes.priority = { from: t.priority, to: patch.priority };
+    dataToUpdate.priority = patch.priority;
+  }
+  if (patch.dueAt !== undefined) {
+    const currentDueTime = t.dueAt ? t.dueAt.getTime() : null;
+    const newDueTime = patch.dueAt ? patch.dueAt.getTime() : null;
+    if (currentDueTime !== newDueTime) {
+      changedFields.push("dueAt");
+      changes.dueAt = {
+        from: t.dueAt ? t.dueAt.toISOString() : null,
+        to: patch.dueAt ? patch.dueAt.toISOString() : null,
+      };
+      dataToUpdate.dueAt = patch.dueAt;
+    }
+  }
+
+  // Enforce field-level permissions on changing fields
+  for (const field of changedFields) {
+    if (!canEditTaskField(user, field)) {
+      throw errors.forbidden();
+    }
+  }
+
+  // No-op: return current task without updating database or logging an event
+  if (changedFields.length === 0) {
+    return getTask(user, id);
+  }
+
+  // Atomic update and audit event
+  await prisma.$transaction([
+    prisma.task.update({
+      where: { id },
+      data: dataToUpdate,
+    }),
+    prisma.auditEvent.create({
+      data: {
+        actorId: user.id,
+        action: "task.updated",
+        entityType: "task",
+        entityId: id,
+        metadata: {
+          changedFields,
+          changes,
+        } as unknown as Prisma.InputJsonValue,
+      },
+    }),
+  ]);
+
+  return getTask(user, id);
 }
 
 export async function assignTask(user: AuthUser, taskId: string, assigneeId: string | null) {
