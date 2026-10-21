@@ -16,7 +16,7 @@ export function setupSocketServer(server: http.Server) {
   io.use(async (socket, next) => {
     try {
       const cookies = cookie.parse(socket.handshake.headers.cookie ?? "");
-      const sid = cookies[env.COOKIE_NAME];
+      const sid = cookies[env.COOKIE_NAME] || (socket.handshake.auth?.token as string | undefined);
       if (!sid) return next(new Error("unauthorized"));
       const session = await prisma.session.findUnique({ where: { id: sid }, include: { user: true } });
       if (!session || session.expiresAt < new Date() || session.user.deactivatedAt || session.user.approvedAt == null) {

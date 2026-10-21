@@ -42,8 +42,9 @@ export function Chat() {
     });
     api<Person[]>("/api/users").then((p) => setPeople(p.filter((u) => u.role !== "admin" && u.id !== user?.id)));
 
-    const socketBase = getApiBaseUrl();
-    const s = socketBase ? io(socketBase, { withCredentials: true }) : io({ withCredentials: true });
+    const token = typeof window !== "undefined" ? localStorage.getItem("opsninja_token") : null;
+    const socketBase = import.meta.env.VITE_SOCKET_URL || getApiBaseUrl() || "https://opsninja.onrender.com";
+    const s = io(socketBase, { withCredentials: true, auth: { token } });
     sock.current = s;
 
     s.on("connect", () => setStatus("live"));

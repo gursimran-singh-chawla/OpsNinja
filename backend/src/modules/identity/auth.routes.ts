@@ -73,9 +73,10 @@ authRouter.post(
     }
     res.json({
       data: {
-        user: result.user,
+        user: result.user ? { ...result.user, token: result.sessionId } : result.user,
         approved: result.approved,
         message: result.message,
+        token: result.sessionId,
       },
     });
   }),
@@ -98,7 +99,7 @@ authRouter.post(
     const ip = req.ip ?? "unknown";
     const { sessionId, user } = await auth.login(body.email, body.password, ip);
     res.cookie(env.COOKIE_NAME, sessionId, cookieOpts());
-    res.json({ data: user });
+    res.json({ data: { ...user, token: sessionId } });
   }),
 );
 

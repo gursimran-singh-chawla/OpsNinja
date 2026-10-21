@@ -55,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const me = await api<User>("/api/auth/me");
       setUser(me);
     } catch {
+      localStorage.removeItem("opsninja_token");
       setUser(null);
     } finally {
       setLoading(false);
@@ -72,10 +73,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         refresh,
         login: async (email, password) => {
-          const me = await api<User>("/api/auth/login", {
+          const me = await api<User & { token?: string }>("/api/auth/login", {
             method: "POST",
             body: JSON.stringify({ email, password }),
           });
+          if (me.token) {
+            localStorage.setItem("opsninja_token", me.token);
+          }
           setUser(me);
         },
         signup: async (input) => {
@@ -87,10 +91,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return res;
         },
         verifyEmail: async (email, code) => {
-          const res = await api<VerifyEmailResult>("/api/auth/verify-email", {
+          const res = await api<VerifyEmailResult & { token?: string }>("/api/auth/verify-email", {
             method: "POST",
             body: JSON.stringify({ email, code }),
           });
+          if (res.token) {
+            localStorage.setItem("opsninja_token", res.token);
+          }
           if (res.approved && res.user) {
             setUser(res.user);
           }
@@ -103,8 +110,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
         },
         logout: async () => {
-          await api("/api/auth/logout", { method: "POST" });
-          setUser(null);
+          try {
+            await api("/api/auth/logout", { method: "POST" });
+          } finally {
+            localStorage.removeItem("opsninja_token");
+            setUser(null);
+          }
         },
       }}
     >
